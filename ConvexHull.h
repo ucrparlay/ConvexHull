@@ -131,6 +131,7 @@ Facet GetValue(point r, facet t) {
 }
 
 void ProcessRidge(facet t1, point r, facet t2) {
+	//testtime3.start();
 	unordered_map<facet, set<point>>::iterator t1iter;
 	unordered_map<facet, set<point>>::iterator t2iter;
 	unordered_set<point>::iterator piter;
@@ -139,11 +140,12 @@ void ProcessRidge(facet t1, point r, facet t2) {
 	
 	t1iter = mapC.find(t1);
 	t2iter = mapC.find(t2);
-
+	//testtime3.stop();
 	if (t1iter->second.size() == 0 && t2iter->second.size() == 0) {
 		return;
 	}
 	else {
+		//testtime1.start();
 		t2min = {0,0,MAX};
 		t1min = { 0,0,MAX };
 		for (unordered_set<point>::iterator it = t1iter->second.begin(); it != t1iter->second.end();++it) {
@@ -153,12 +155,13 @@ void ProcessRidge(facet t1, point r, facet t2) {
 			if (*it < t2min) {
 				t2min = *it;
 			}
-		}
+		}//testtime1.stop();
 		if (t2min.pivot == t1min.pivot) {
 		H.erase(t1);
 		H.erase(t2);
 		}
 		else if (((t2min.pivot < t1min.pivot) && t2iter->second.size() != 0) || t1iter->second.size() == 0) {//左
+			//testtime2.start();
 			point p = t2min;
 			facet t;
 			t.v1 = r;
@@ -177,13 +180,15 @@ void ProcessRidge(facet t1, point r, facet t2) {
 					if (visible((*piter), t))visiblep.insert((*piter));
 				}
 			}
-
+			//testtime2.stop();
+			//testtime5.start();
 			mapC.insert(pair<facet, unordered_set<point>>(t, visiblep));
 
 			H.erase(t2);
 			H.insert(t);
 			point tempr;
 			facet tempt;
+			//testtime5.stop();
 			for (int i = 0; i < 2; i++) {
 				if (i) tempr = t.v1;
 				else tempr = t.v2;
@@ -191,9 +196,13 @@ void ProcessRidge(facet t1, point r, facet t2) {
 					ProcessRidge(t1, r, t);
 				}
 				else {
+					//testtime6.start();
 					unordered_map<point, facet>::iterator it = M.find(tempr);
+					//testtime6.stop();
 					if (it == M.end()) {
+						//testtime6.start();
 						M.insert(pair<point, facet>(tempr, t));
+						//testtime6.stop();
 					}
 					else {
 						ProcessRidge(t, tempr, it->second);
@@ -202,6 +211,7 @@ void ProcessRidge(facet t1, point r, facet t2) {
 			}
 		}
 		else {//右
+			//testtime4.start();
 			point p = t1min;
 			facet t;
 			t.v1 = p;
@@ -227,6 +237,7 @@ void ProcessRidge(facet t1, point r, facet t2) {
 			H.insert(t);
 			point tempr;
 			facet tempt;
+			//testtime4.stop();
 			for (int i = 0; i < 2; i++) {
 				if (i) tempr = t.v1;
 				else tempr = t.v2;
@@ -234,9 +245,13 @@ void ProcessRidge(facet t1, point r, facet t2) {
 					ProcessRidge(t, r, t2);
 				}
 				else {
+					//testtime4.start();
 					unordered_map<point, facet>::iterator it = M.find(tempr);
+					//testtime4.stop();
 					if (it == M.end()) {
+						//testtime4.start();
 						M.insert(pair<point, facet>(tempr, t));
+						//testtime4.stop();
 					}
 					else {
 						ProcessRidge(it->second, tempr, t);
