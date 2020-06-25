@@ -41,7 +41,7 @@ void init(point *p, int n){
 		p[2] = p[x];
 		p[x] = temp;
 	}
-	set<point> visiblep;
+	unordered_set<point> visiblep;
 	facet t;
 	//确定每条线中的点顺时针排列
 	//初始C,H
@@ -52,7 +52,7 @@ void init(point *p, int n){
 				visiblep.insert(p[j]);
 			}
 		}
-		mapC.insert(pair<facet, set<point>>(t, visiblep));
+		mapC.insert(pair<facet, unordered_set<point>>(t, visiblep));
 		H.insert(t);
 		visiblep.clear();
 		t = { p[2],p[1] };
@@ -61,7 +61,7 @@ void init(point *p, int n){
 				visiblep.insert(p[j]);
 			}
 		}
-		mapC.insert(pair<facet, set<point>>(t, visiblep));
+		mapC.insert(pair<facet, unordered_set<point>>(t, visiblep));
 		H.insert(t);
 		visiblep.clear();
 		t = { p[1],p[0] };
@@ -70,7 +70,7 @@ void init(point *p, int n){
 				visiblep.insert(p[j]);
 			}
 		}
-		mapC.insert(pair<facet, set<point>>(t, visiblep));
+		mapC.insert(pair<facet, unordered_set<point>>(t, visiblep));
 		H.insert(t);
 		visiblep.clear();
 	}
@@ -81,7 +81,7 @@ void init(point *p, int n){
 				visiblep.insert(p[j]);
 			}
 		}
-		mapC.insert(pair<facet, set<point>>(t, visiblep));
+		mapC.insert(pair<facet, unordered_set<point>>(t, visiblep));
 		H.insert(t);
 		visiblep.clear();
 
@@ -91,7 +91,7 @@ void init(point *p, int n){
 				visiblep.insert(p[j]);
 			}
 		}
-		mapC.insert(pair<facet, set<point>>(t, visiblep));
+		mapC.insert(pair<facet, unordered_set<point>>(t, visiblep));
 		H.insert(t);
 		visiblep.clear();
 
@@ -101,13 +101,13 @@ void init(point *p, int n){
 				visiblep.insert(p[j]);
 			}
 		}
-		mapC.insert(pair<facet, set<point>>(t, visiblep));
+		mapC.insert(pair<facet, unordered_set<point>>(t, visiblep));
 		H.insert(t);
 		visiblep.clear();
 	}
 	facet tempf;
 	//初始M
-	for (int i = 0; i < 3; i++) {
+	/*for (int i = 0; i < 3; i++) {
 
 		if (start(p[0], p[1], p[2])) {
 			tempf = { p[i] ,p[(i + 2) % 3] };
@@ -123,7 +123,7 @@ void init(point *p, int n){
 			tempf = { p[i], p[(i + 1) % 3] };
 			M.insert(pair<point, facet>(p[i], tempf));
 		}
-	}
+	}*/
 }
 
 Facet GetValue(point r, facet t) {
