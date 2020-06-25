@@ -11,6 +11,8 @@
 #include <set>
 #include "dataset.h"
 #include "CheckVisible.h"
+
+const int MAX = 100000000;
 namespace std {
 	template<>
 	struct hash<Facet> {
@@ -19,14 +21,21 @@ namespace std {
 			return (hash<int>{}(o.v1.pivot) ^ (hash<int>{}(o.v2.pivot) << 1));
 		}
 	};
+	template<>
+	struct hash<point> {
+		std::size_t operator()(const point& o) const {
+			using std::hash;
+			return (hash<int>{}(o.pivot));
+		}
+	};
 }
 using namespace std;
 
-unordered_map<facet, set<point>> mapC;
-multimap<point, facet> M;
-set<Facet> H;
+unordered_map<facet, unordered_set<point>> mapC;
+unordered_map<point, facet> M;
+unordered_set<Facet> H;
 void init(point *p, int n){
-	while (collinear(p[0], p[1], p[2])) {//ÅÅ³ı³õÊ¼Èıµã¹²Ïß
+	while (collinear(p[0], p[1], p[2])) {//æ’é™¤åˆå§‹ä¸‰ç‚¹å…±çº¿
 		int x = rand() % n;
 		point temp = p[2];
 		p[2] = p[x];
@@ -34,8 +43,8 @@ void init(point *p, int n){
 	}
 	set<point> visiblep;
 	facet t;
-	//È·¶¨Ã¿ÌõÏßÖĞµÄµãË³Ê±ÕëÅÅÁĞ
-	//³õÊ¼C,H
+	//ç¡®å®šæ¯æ¡çº¿ä¸­çš„ç‚¹é¡ºæ—¶é’ˆæ’åˆ—
+	//åˆå§‹C,H
 	if (start(p[0], p[1], p[2])) {
 		t = { p[0],p[2] };
 		for (int j = 3; j < n; j++) {
@@ -97,7 +106,7 @@ void init(point *p, int n){
 		visiblep.clear();
 	}
 	facet tempf;
-	//³õÊ¼M
+	//åˆå§‹M
 	for (int i = 0; i < 3; i++) {
 
 		if (start(p[0], p[1], p[2])) {
@@ -124,102 +133,114 @@ Facet GetValue(point r, facet t) {
 void ProcessRidge(facet t1, point r, facet t2) {
 	unordered_map<facet, set<point>>::iterator t1iter;
 	unordered_map<facet, set<point>>::iterator t2iter;
-	set<point>::iterator piter;
-	set<point> visiblep;
+	unordered_set<point>::iterator piter;
+	unordered_set<point> visiblep;
+	point t1min,t2min; 
+	
 	t1iter = mapC.find(t1);
 	t2iter = mapC.find(t2);
 
 	if (t1iter->second.size() == 0 && t2iter->second.size() == 0) {
 		return;
 	}
-	else if (t1iter->second.begin()->pivot == t2iter->second.begin()->pivot) {
+	else {
+		t2min = {0,0,MAX};
+		t1min = { 0,0,MAX };
+		for (unordered_set<point>::iterator it = t1iter->second.begin(); it != t1iter->second.end();++it) {
+			if (*it < t1min)t1min = *it;
+		}
+		for (unordered_set<point>::iterator it = t2iter->second.begin(); it != t2iter->second.end(); ++it) {
+			if (*it < t2min) {
+				t2min = *it;
+			}
+		}
+		if (t2min.pivot == t1min.pivot) {
 		H.erase(t1);
 		H.erase(t2);
-	}
-	else if (((t1iter->second.begin()->pivot > t2iter->second.begin()->pivot) && t2iter->second.size() != 0) || t1iter->second.size() == 0) {//×ó
-		point p = (*t2iter->second.begin());
-		facet t;
-		t.v1 = r;
-		t.v2 = p;
-		piter = t2iter->second.begin();
-		if (t1iter == mapC.end() || t1iter->second.size() == 0) {
-			for (int i = 0; i < t2iter->second.size(); i++, piter++) {
-				if (visible((*piter), t))visiblep.insert((*piter));
-			}
 		}
-		else {
-			for (int i = 0; i < t2iter->second.size(); i++, piter++) {
-				if (visible((*piter), t))visiblep.insert((*piter));
-			}
-			for (piter = t1iter->second.begin(); piter != t1iter->second.end(); ++piter) {
-				if (visible((*piter), t))visiblep.insert((*piter));
-			}
-		}
-
-		mapC.insert(pair<facet, set<point>>(t, visiblep));
-		visiblep.clear();
-
-		H.erase(t2);
-		H.insert(t);
-		point tempr;
-		facet tempt;
-		for (int i = 0; i < 2; i++) {
-			if (i) tempr = t.v1;
-			else tempr = t.v2;
-			if (r.pivot == tempr.pivot) {
-				ProcessRidge(t1, r, t);
+		else if (((t2min.pivot < t1min.pivot) && t2iter->second.size() != 0) || t1iter->second.size() == 0) {//å·¦
+			point p = t2min;
+			facet t;
+			t.v1 = r;
+			t.v2 = p;
+			piter = t2iter->second.begin();
+			if (t1iter == mapC.end() || t1iter->second.size() == 0) {
+				for (int i = 0; i < t2iter->second.size(); i++, piter++) {
+					if (visible((*piter), t))visiblep.insert((*piter));
+				}
 			}
 			else {
-				multimap<point, facet>::iterator it = M.find(tempr);
-				if (it == M.end()) {
-					M.insert(pair<point, facet>(tempr, t));
+				for (int i = 0; i < t2iter->second.size(); i++, piter++) {
+					if (visible((*piter), t))visiblep.insert((*piter));
+				}
+				for (piter = t1iter->second.begin(); piter != t1iter->second.end(); ++piter) {
+					if (visible((*piter), t))visiblep.insert((*piter));
+				}
+			}
+
+			mapC.insert(pair<facet, unordered_set<point>>(t, visiblep));
+
+			H.erase(t2);
+			H.insert(t);
+			point tempr;
+			facet tempt;
+			for (int i = 0; i < 2; i++) {
+				if (i) tempr = t.v1;
+				else tempr = t.v2;
+				if (r.pivot == tempr.pivot) {
+					ProcessRidge(t1, r, t);
 				}
 				else {
-					ProcessRidge(t, tempr, it->second);
+					unordered_map<point, facet>::iterator it = M.find(tempr);
+					if (it == M.end()) {
+						M.insert(pair<point, facet>(tempr, t));
+					}
+					else {
+						ProcessRidge(t, tempr, it->second);
+					}
 				}
 			}
 		}
-	}
-	else {//ÓÒ
-		point p = (*t1iter->second.begin());
-		facet t;
-		t.v1 = p;
-		t.v2 = r;
-		piter = t1iter->second.begin();
-		if (t2iter == mapC.end() || t2iter->second.size() == 0) {
-			for (int i = 0; i < t1iter->second.size(); i++, piter++) {
-				if (visible((*piter), t))visiblep.insert((*piter));
-			}
-		}
-		else {
-			for (int i = 0; i < t1iter->second.size(); i++, piter++) {
-				if (visible((*piter), t))visiblep.insert((*piter));
-			}
-			for (piter = t2iter->second.begin(); piter != t2iter->second.end(); piter++) {
-				if (visible((*piter), t))visiblep.insert((*piter));
-			}
-		}
-
-		mapC.insert(pair<facet, set<point>>(t, visiblep));
-		visiblep.clear();
-
-		H.erase(t1);
-		H.insert(t);
-		point tempr;
-		facet tempt;
-		for (int i = 0; i < 2; i++) {
-			if (i) tempr = t.v1;
-			else tempr = t.v2;
-			if (r.pivot == tempr.pivot) {
-				ProcessRidge(t, r, t2);
+		else {//å³
+			point p = t1min;
+			facet t;
+			t.v1 = p;
+			t.v2 = r;
+			piter = t1iter->second.begin();
+			if (t2iter == mapC.end() || t2iter->second.size() == 0) {
+				for (int i = 0; i < t1iter->second.size(); i++, piter++) {
+					if (visible((*piter), t))visiblep.insert((*piter));
+				}
 			}
 			else {
-				multimap<point, facet>::iterator it = M.find(tempr);
-				if (it == M.end()) {
-					M.insert(pair<point, facet>(tempr, t));
+				for (int i = 0; i < t1iter->second.size(); i++, piter++) {
+					if (visible((*piter), t))visiblep.insert((*piter));
+				}
+				for (piter = t2iter->second.begin(); piter != t2iter->second.end(); piter++) {
+					if (visible((*piter), t))visiblep.insert((*piter));
+				}
+			}
+
+			mapC.insert(pair<facet, unordered_set<point>>(t, visiblep));
+			
+			H.erase(t1);
+			H.insert(t);
+			point tempr;
+			facet tempt;
+			for (int i = 0; i < 2; i++) {
+				if (i) tempr = t.v1;
+				else tempr = t.v2;
+				if (r.pivot == tempr.pivot) {
+					ProcessRidge(t, r, t2);
 				}
 				else {
-					ProcessRidge(it->second, tempr, t);
+					unordered_map<point, facet>::iterator it = M.find(tempr);
+					if (it == M.end()) {
+						M.insert(pair<point, facet>(tempr, t));
+					}
+					else {
+						ProcessRidge(it->second, tempr, t);
+					}
 				}
 			}
 		}
