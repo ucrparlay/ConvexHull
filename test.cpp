@@ -97,6 +97,7 @@ unordered_map<facet, vector<point>> mapC;
 unordered_map<point, facet> M;
 unordered_set<Facet> H;
 
+bool sortfunction()(int i, int j) { return (j < i); }
 
 void RandmOnCircle(point *p, int n) {
 	for (int i = 0; i < n; i++) {
