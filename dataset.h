@@ -55,7 +55,7 @@ typedef struct facet
 	}
 }Facet;
 
-bool sortfunction()(int i, int j) { return (j < i); }
+bool sortfunction(int i, int j) { return (j < i); }
 
 void RandmPoint(point *p, int n){
 	for (int i = 0; i < n; i++) {
