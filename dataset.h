@@ -34,10 +34,10 @@ struct point
 	{
 		return pivot < o.pivot;
 	}
-	/*bool operator == (const point &o) const
+	bool operator == (const point &o) const
 	{
 		return pivot == o.pivot;
-	}*/
+	}/**/
 };
 
 typedef struct facet
