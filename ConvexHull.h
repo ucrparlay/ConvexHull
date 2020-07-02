@@ -31,9 +31,10 @@ namespace std {
 }
 using namespace std;
 
-unordered_map<facet, unordered_set<point>> mapC;
+unordered_map<facet, vector<point>> mapC;
 unordered_map<point, facet> M;
 unordered_set<Facet> H;
+
 void init(point *p, int n){
 	while (collinear(p[0], p[1], p[2])) {//排除初始三点共线
 		int x = rand() % n;
