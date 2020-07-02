@@ -54,6 +54,9 @@ typedef struct facet
 		return v1.pivot == o.v1.pivot && v2.pivot == o.v2.pivot;
 	}
 }Facet;
+
+bool sortfunction()(int i, int j) { return (j < i); }
+
 void RandmPoint(point *p, int n){
 	for (int i = 0; i < n; i++) {
 		p[i].x = (hash1(i)) % (n * 2);
