@@ -158,46 +158,25 @@ void ProcessRidge(facet t1, point r, facet t2) {
 	}
 	else if (t1iter->second.empty() || (t2iter->second.size() != 0 && (t2iter->second.back() < t1iter->second.back()))) {//左
 		//testtime2.start();
+		vector<point> c;
 		point p = (t2iter->second.back());
 		point temp;
 		facet t;
 		t.v1 = r;
 		t.v2 = p;
 		//cout << "3check2" << endl;
-		for (int i = 0; i < t2iter->second.size(); i++) {
-			//cout << i << endl;
-			if (visible(t2iter->second[i], t)) {
-				if (vp.empty()) {
+		if (t1iter->second.empty()) {
+			for (int i = 0; i < t2iter->second.size(); i++) {
+				if (visible(t2iter->second[i], t)) {
 					vp.push_back(t2iter->second[i]);
-				}
-				else {
-					if (t2iter->second[i] < vp.back()) {
-						vp.push_back(t2iter->second[i]);
-					}
-					else {
-						temp = vp.back();
-						vp[vp.size() - 1] = t2iter->second[i];
-						vp.push_back(temp);
-					}
 				}
 			}
 		}
-		//cout << "3check3" << endl;
-		for (int i = 0; i < t1iter->second.size(); i++) {
-			//cout << i << endl;
-			if (visible(t1iter->second[i], t)) {
-				if (vp.empty()) {
-					vp.push_back(t1iter->second[i]);
-				}
-				else {
-					if (t1iter->second[i] < vp.back()) {
-						vp.push_back(t1iter->second[i]);
-					}
-					else {
-						temp = vp.back();
-						vp[vp.size() - 1] = t1iter->second[i];
-						vp.push_back(temp);
-					}
+		else {
+			set_union(t2iter->second.begin(), t2iter->second.end(), t1iter->second.begin(), t1iter->second.end(), inserter(c, c.begin()));
+			for (int i = 0; i < c.size(); i++) {
+				if (visible(c[i], t)) {
+					vp.push_back(c[i]);
 				}
 			}
 		}
@@ -236,46 +215,27 @@ void ProcessRidge(facet t1, point r, facet t2) {
 	}
 	else {//右
 		//testtime5.start();
+		vector<point> c;
 		point p = t1iter->second.back();
 		point temp;
 		facet t;
 		t.v1 = p;
 		t.v2 = r;
 		//cout << "4check2" << endl;
-		for (int i = 0; i < t2iter->second.size(); i++) {
-			//cout << i << endl;
-			if (visible(t2iter->second[i], t)) {
-				if (vp.empty()) {
-					vp.push_back(t2iter->second[i]);
-				}
-				else {
-					if (t2iter->second[i] < vp.back()) {
-						vp.push_back(t2iter->second[i]);
-					}
-					else {
-						temp = vp.back();
-						vp[vp.size() - 1] = t2iter->second[i];
-						vp.push_back(temp);
-					}
+		if (t2iter->second.empty()) {
+			for (int i = 0; i < t1iter->second.size(); i++) {
+				count5++;
+				if (visible(t1iter->second[i], t)) {
+					vp.push_back(t1iter->second[i]);
 				}
 			}
 		}
-		//cout << "4check3" << endl;
-		for (int i = 0; i < t1iter->second.size(); i++) {
-			//cout << i << endl;
-			if (visible(t1iter->second[i], t)) {
-				if (vp.empty()) {
-					vp.push_back(t1iter->second[i]);
-				}
-				else {
-					if (t1iter->second[i] < vp.back()) {
-						vp.push_back(t1iter->second[i]);
-					}
-					else {
-						temp = vp.back();
-						vp[vp.size() - 1] = t1iter->second[i];
-						vp.push_back(temp);
-					}
+		else {
+			set_union(t2iter->second.begin(), t2iter->second.end(), t1iter->second.begin(), t1iter->second.end(), inserter(c, c.begin()));
+			for (int i = 0; i < c.size(); i++) {
+				count5++;
+				if (visible(c[i], t)) {
+					vp.push_back(c[i]);
 				}
 			}
 		}
