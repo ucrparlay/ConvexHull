@@ -173,10 +173,42 @@ void ProcessRidge(facet t1, point r, facet t2) {
 			}
 		}
 		else {
-			set_union(t2iter->second.begin(), t2iter->second.end(), t1iter->second.begin(), t1iter->second.end(), inserter(c, c.begin()));
-			for (int i = 0; i < c.size(); i++) {
-				if (visible(c[i], t)) {
-					vp.push_back(c[i]);
+			int pointer1 = 0;
+			int pointer2 = 0;
+			while (pointer1 < t1iter->second.size() && pointer2 < t2iter->second.size())
+			{
+				if (t1iter->second[pointer1] < t2iter->second[pointer2]) {
+					if (visible(t1iter->second[pointer1], t)) {
+						vp.push_back(t1iter->second[pointer1]);
+					}
+					pointer1++;
+				}
+				else if (t2iter->second[pointer2] < t1iter->second[pointer1]) {
+					if (visible(t2iter->second[pointer2], t)) {
+						vp.push_back(t2iter->second[pointer2]);
+					}
+					pointer2++;
+				}
+				else {
+					if (visible(t1iter->second[pointer1], t)) {
+						vp.push_back(t1iter->second[pointer1]);
+					}
+					pointer1++; 
+					pointer2++;
+				}
+			}
+			if (pointer1 != t1iter->second.size()) {
+				for (int i = pointer1; i < t1iter->second.size(); i++) {
+					if (visible(t1iter->second[i], t)) {
+						vp.push_back(t1iter->second[i]);
+					}
+				}
+			}
+			else if (pointer2 != t2iter->second.size()) {
+				for (int i = pointer2; i < t2iter->second.size(); i++) {
+					if (visible(t2iter->second[i], t)) {
+						vp.push_back(t2iter->second[i]);
+					}
 				}
 			}
 		}
@@ -231,11 +263,42 @@ void ProcessRidge(facet t1, point r, facet t2) {
 			}
 		}
 		else {
-			set_union(t2iter->second.begin(), t2iter->second.end(), t1iter->second.begin(), t1iter->second.end(), inserter(c, c.begin()));
-			for (int i = 0; i < c.size(); i++) {
-				count5++;
-				if (visible(c[i], t)) {
-					vp.push_back(c[i]);
+			int pointer1 = 0;
+			int pointer2 = 0;
+			while (pointer1 < t1iter->second.size() && pointer2 < t2iter->second.size())
+			{
+				if (t1iter->second[pointer1] < t2iter->second[pointer2]) {
+					if (visible(t1iter->second[pointer1], t)) {
+						vp.push_back(t1iter->second[pointer1]);
+					}
+					pointer1++;
+				}
+				else if (t2iter->second[pointer2] < t1iter->second[pointer1]) {
+					if (visible(t2iter->second[pointer2], t)) {
+						vp.push_back(t2iter->second[pointer2]);
+					}
+					pointer2++;
+				}
+				else {
+					if (visible(t1iter->second[pointer1], t)) {
+						vp.push_back(t1iter->second[pointer1]);
+					}
+					pointer1++; 
+					pointer2++;
+				}
+			}
+			if (pointer1 != t1iter->second.size()) {
+				for (int i = pointer1; i < t1iter->second.size(); i++) {
+					if (visible(t1iter->second[i], t)) {
+						vp.push_back(t1iter->second[i]);
+					}
+				}
+			}
+			else if (pointer2 != t2iter->second.size()) {
+				for (int i = pointer2; i < t2iter->second.size(); i++) {
+					if (visible(t2iter->second[i], t)) {
+						vp.push_back(t2iter->second[i]);
+					}
 				}
 			}
 		}
