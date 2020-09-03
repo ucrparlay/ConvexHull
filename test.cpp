@@ -106,11 +106,12 @@ unordered_set<Facet> H;
 point* p;
 pair <int, int>* R;
 
+
 bool sortfunction(point i, point j) { return (j < i); }
 
 bool InsertandSetL(facet t) {
 	int i = hash<point>()(t.v1) % (t.v1.n * 100);
-	while (!pbbs::atomic_compare_and_swap(&R[i], double 0, pair<t.v1.pivot, t.v2.pivot>)) {
+	while (!pbbs::atomic_compare_and_swap(&R[i], pair <int, int> (0,0), pair<int, int>(t.v1.pivot, t.v2.pivot))) {
 		if (R[i].first == t.v1.pivot) {
 			return false;
 		}
@@ -121,7 +122,7 @@ bool InsertandSetL(facet t) {
 
 bool InsertandSetR(facet t) {
 	int i = hash<point>()(t.v2) % (t.v2.n * 100);
-	while (!pbbs::atomic_compare_and_swap(&R[i], double 0, pair <t.v2.pivot, t.v1.pivot>)) {
+	while (!pbbs::atomic_compare_and_swap(&R[i], pair <int, int>(0, 0), pair<int, int>(t.v2.pivot, t.v1.pivot))) {
 		if (R[i].first == t.v2.pivot) {
 			return false;
 		}
@@ -135,7 +136,7 @@ facet getvalueL(facet t){
 	while (!(R[i].first == t.v1.pivot)){
 		i = (i + 1) % (t.v1.n * 100);
 	}
-	return pair<p[R[i].first], p[R[i].second]>;
+	return pair<point,point>(p[R[i].first], p[R[i].second]);
 }
 
 facet getvalueR(facet t) {
@@ -143,7 +144,7 @@ facet getvalueR(facet t) {
 	while (!(R[i].first == t.v2.pivot)) {
 		i = (i + 1) % (t.v2.n * 100);
 	}
-	return pair<p[R[i].second], p[R[i].first]>;
+	return pair<point, point>(p[R[i].second], p[R[i].first]);
 }
 
 void RandmOnCircle(point *p, int n) {
@@ -326,8 +327,7 @@ void ProcessRidge(facet t1, point r, facet t2) {
 		testtime5.start();
 		count4++;
 		vector<point> c;
-		point temppp = t1iter->second[0];
-		point temp;
+		point tempp = t1iter->second[0];
 		facet t;
 		t.v1 = tempp;
 		t.v2 = r;
@@ -465,7 +465,8 @@ int main(int argc, char** argv) {
 	int n = atoi(argv[1]);
 	int type_of_input = atoi(argv[2]);
 	p = new point[n];
-	R = new pair<point, facet>[100 * n];
+	R = new pair<int, int>[100 * n];
+	
 	
 	if(type_of_input == 0){
 		for (int i = 0; i < n; i++) {
