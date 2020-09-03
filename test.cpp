@@ -12,9 +12,9 @@
 #include <string.h>
 #include <cmath>
 #include <algorithm>
-#include <cilk/cilk.h>
-#include <cilk/cilk_api.h>
 #include "get_time.h"
+#include "utilities.h"
+
 
 const  double PI = 3.1415926;
 const  double EPSINON = 0.0000001;
@@ -22,7 +22,9 @@ int count1 = 0;
 int count2 = 0;
 int count3 = 0;
 int count4 = 0;
+int count5 = 0;
 timer testtime1, testtime2, testtime3, testtime4, testtime5;
+
 
 inline uint32_t hash1(uint32_t a) {
 	a = (a + 0x7ed55d16) + (a << 12);
@@ -46,10 +48,15 @@ inline uint32_t hash2(uint32_t a){
 	return a;
 }
 
+struct parallelmap
+{
+	
+};
+
 struct point
 {
 	double x, y;
-	int pivot;
+	int pivot,n;
 	bool operator < (const point &o) const
 	{
 		return pivot < o.pivot;
@@ -96,8 +103,48 @@ using namespace std;
 unordered_map<facet, vector<point>> mapC;
 unordered_map<point, facet> M;
 unordered_set<Facet> H;
+point* p;
+pair <int, int>* R;
 
-bool sortfunction()(int i, int j) { return (j < i); }
+bool sortfunction(point i, point j) { return (j < i); }
+
+bool InsertandSetL(facet t) {
+	int i = hash<point>()(t.v1) % (t.v1.n * 100);
+	while (!pbbs::atomic_compare_and_swap(&R[i], double 0, pair<t.v1.pivot, t.v2.pivot>)) {
+		if (R[i].first == t.v1.pivot) {
+			return false;
+		}
+		i = (i + 1) % (t.v1.n * 100);
+	}
+	return true;
+}
+
+bool InsertandSetR(facet t) {
+	int i = hash<point>()(t.v2) % (t.v2.n * 100);
+	while (!pbbs::atomic_compare_and_swap(&R[i], double 0, pair <t.v2.pivot, t.v1.pivot>)) {
+		if (R[i].first == t.v2.pivot) {
+			return false;
+		}
+		i = (i + 1) % (t.v2.n * 100);
+	}
+	return true;
+}
+
+facet getvalueL(facet t){
+	int i = hash<point>()(t.v1);
+	while (!(R[i].first == t.v1.pivot)){
+		i = (i + 1) % (t.v1.n * 100);
+	}
+	return pair<p[R[i].first], p[R[i].second]>;
+}
+
+facet getvalueR(facet t) {
+	int i = hash<point>()(t.v2);
+	while (!(R[i].first == t.v2.pivot)) {
+		i = (i + 1) % (t.v2.n * 100);
+	}
+	return pair<p[R[i].second], p[R[i].first]>;
+}
 
 void RandmOnCircle(point *p, int n) {
 	for (int i = 0; i < n; i++) {
@@ -123,37 +170,101 @@ bool collinear(point v1, point v2, point v3) {
 	else return false;
 }
 
-Facet GetValue(point r, facet t) {
-
-}
 
 void ProcessRidge(facet t1, point r, facet t2) {
-	//testtime1.start();
+	testtime1.start();
 	unordered_map<facet, vector<point>>::iterator t1iter;
 	unordered_map<facet, vector<point>>::iterator t2iter;
 	vector<point> vp;
 	
-	//cout << "check1" << endl;
+	//cout << t1.v1.pivot << "," << t1.v2.pivot << " " << t2.v1.pivot << "," << t2.v2.pivot << endl;
 	t1iter = mapC.find(t1);
 	t2iter = mapC.find(t2);
-	//testtime1.stop();
+	testtime1.stop();
 	if (t1iter->second.empty() && t2iter->second.empty()) {
-		return;
+		count1++;
+		
 	}
-	else if (!(t2iter->second.empty()) &&  !(t1iter->second.empty()) && t1iter->second.back() == t2iter->second.back()) {
+	else if (!(t2iter->second.empty()) &&  !(t1iter->second.empty()) && t1iter->second[0] == t2iter->second[0]) {
+		count2++;
+		testtime1.start();
 		H.erase(t1);
 		H.erase(t2);
+		testtime1.stop();
 	}
-	else if (t1iter->second.empty() || (t2iter->second.size() != 0 && (t2iter->second.back() < t1iter->second.back()))) {//左
-		//testtime2.start();
-		point p = (t2iter->second.back());
-		point temp;
+	else if (t1iter->second.empty() || (t2iter->second.size() != 0 && (t2iter->second[0] < t1iter->second[0]))) {//左
+		testtime2.start();
+		count3++;
+		vector<point> c;
+		point tempp = t2iter->second[0];
 		facet t;
 		t.v1 = r;
-		t.v2 = p;
-		//cout << "3check2" << endl;
-		cilk_for (int i = 0; i < t2iter->second.size(); i++) {
+		t.v2 = tempp;
+		//cout << "3-2: " << t2iter->second.size() << endl;
+		//cout << "3-1: " << t1iter->second.size() << endl;
+		if (t1iter->second.empty()) {
+			//sort(t2iter->second.begin(), t2iter->second.end());
+			for (int i = 0; i < t2iter->second.size(); i++) {
+				//cout << i << endl;
+				count5++;
+				if (visible(t2iter->second[i], t)) {
+					vp.push_back(t2iter->second[i]);
+				}
+			}
+		}
+		else {
+			int pointer1 = 0;
+			int pointer2 = 0;
+			while (pointer1 < t1iter->second.size() && pointer2 < t2iter->second.size())
+			{
+				if (t1iter->second[pointer1] < t2iter->second[pointer2]) {
+					if (visible(t1iter->second[pointer1], t)) {
+						vp.push_back(t1iter->second[pointer1]);
+					}
+					pointer1++;
+				}
+				else if (t2iter->second[pointer2] < t1iter->second[pointer1]) {
+					if (visible(t2iter->second[pointer2], t)) {
+						vp.push_back(t2iter->second[pointer2]);
+					}
+					pointer2++;
+				}
+				else {
+					if (visible(t1iter->second[pointer1], t)) {
+						vp.push_back(t1iter->second[pointer1]);
+					}
+					pointer1++;
+					pointer2++;
+				}
+			}
+			if (pointer1 != t1iter->second.size()) {
+				for (int i = pointer1; i < t1iter->second.size(); i++) {
+					if (visible(t1iter->second[i], t)) {
+						vp.push_back(t1iter->second[i]);
+					}
+				}
+			}
+			else if (pointer2 != t2iter->second.size()) {
+				for (int i = pointer2; i < t2iter->second.size(); i++) {
+					if (visible(t2iter->second[i], t)) {
+						vp.push_back(t2iter->second[i]);
+					}
+				}
+			}
+			//sort(t1iter->second.begin(), t1iter->second.end());
+			//sort(t2iter->second.begin(), t2iter->second.end());
+			/*set_union(t2iter->second.begin(), t2iter->second.end(), t1iter->second.begin(), t1iter->second.end(), inserter(c, c.begin()));
+			for (int i = 0; i < c.size(); i++) {
+				//cout << i << endl;
+				count5++;
+				if (visible(c[i], t)) {
+					vp.push_back(c[i]);
+				}
+			}*/
+		}
+		/*for (int i = 0; i < t2iter->second.size(); i++) {
 			//cout << i << endl;
+			count5++;
 			if (visible(t2iter->second[i], t)) {
 				if (vp.empty()) {
 					vp.push_back(t2iter->second[i]);
@@ -170,9 +281,10 @@ void ProcessRidge(facet t1, point r, facet t2) {
 				}
 			}
 		}
-		//cout << "3check3" << endl;
-		cilk_for (int i = 0; i < t1iter->second.size(); i++) {
+		
+		for (int i = 0; i < t1iter->second.size(); i++) {
 			//cout << i << endl;
+			count5++;
 			if (visible(t1iter->second[i], t)) {
 				if (vp.empty()) {
 					vp.push_back(t1iter->second[i]);
@@ -188,50 +300,103 @@ void ProcessRidge(facet t1, point r, facet t2) {
 					}
 				}
 			}
-		}
+		}*/
 		
-		//testtime2.stop();
-		//testtime3.start();
+		testtime2.stop();
+		testtime3.start();
 		mapC.insert(pair<facet, vector<point>>(t, vp));
 
 		
 		H.erase(t2);
 		H.insert(t);
-		point tempr;
-		facet tempt; 
-		//testtime3.stop();
+		
+		testtime3.stop();
 		for (int i = 0; i < 2; i++) {
 			
-			if (i) tempr = t.v1;
-			else tempr = t.v2;
-			if (r.pivot == tempr.pivot) {
+			if (i) {
 				ProcessRidge(t1, r, t);
 			}
-			else{
-				//testtime4.start();
-				unordered_map<point, facet>::iterator it = M.find(tempr);
-				//testtime4.stop();
-				if (it == M.end()) {
-					//testtime4.start();
-					M.insert(pair<point, facet>(tempr, t));
-					//testtime4.stop();
-				}
-				else {
-					ProcessRidge(t, tempr, it->second);
-				}
+			else if(!InsertandSetL(t)){
+				facet oldt = getvalueL(t);
+				ProcessRidge(t, t.v2, oldt);
 			}
 		}
 	}
 	else {//右
-		//testtime5.start();
-		point p = t1iter->second.back();
+		testtime5.start();
+		count4++;
+		vector<point> c;
+		point temppp = t1iter->second[0];
 		point temp;
 		facet t;
-		t.v1 = p;
+		t.v1 = tempp;
 		t.v2 = r;
-		//cout << "4check2" << endl;
-		for (int i = 0; i < t2iter->second.size(); i++) {
+		//cout << "4-2: " << t2iter->second.size() << endl;
+		//cout << "4-1: " << t1iter->second.size() << endl;
+		if (t2iter->second.empty()) {
+			//sort(t1iter->second.begin(), t1iter->second.end());
+			for (int i = 0; i < t1iter->second.size(); i++) {
+				//cout << i << endl;
+				count5++;
+				if (visible(t1iter->second[i], t)) {
+					vp.push_back(t1iter->second[i]);
+				}
+			}
+		}
+		else {
+			int pointer1 = 0;
+			int pointer2 = 0;
+			while (pointer1 < t1iter->second.size() && pointer2 < t2iter->second.size())
+			{
+				if (t1iter->second[pointer1] < t2iter->second[pointer2]) {
+					if (visible(t1iter->second[pointer1], t)) {
+						vp.push_back(t1iter->second[pointer1]);
+					}
+					pointer1++;
+				}
+				else if (t2iter->second[pointer2] < t1iter->second[pointer1]) {
+					if (visible(t2iter->second[pointer2], t)) {
+						vp.push_back(t2iter->second[pointer2]);
+					}
+					pointer2++;
+				}
+				else {
+					if (visible(t1iter->second[pointer1], t)) {
+						vp.push_back(t1iter->second[pointer1]);
+					}
+					pointer1++; 
+					pointer2++;
+				}
+			}
+			if (pointer1 != t1iter->second.size()) {
+				for (int i = pointer1; i < t1iter->second.size(); i++) {
+					if (visible(t1iter->second[i], t)) {
+						vp.push_back(t1iter->second[i]);
+					}
+				}
+			}
+			else if (pointer2 != t2iter->second.size()) {
+				for (int i = pointer2; i < t2iter->second.size(); i++) {
+					if (visible(t2iter->second[i], t)) {
+						vp.push_back(t2iter->second[i]);
+					}
+				}
+			}
+			//sort(t1iter->second.begin(), t1iter->second.end());
+			//sort(t2iter->second.begin(), t2iter->second.end());
+			/*set_union(t2iter->second.begin(), t2iter->second.end(), t1iter->second.begin(), t1iter->second.end(), inserter(c, c.begin()));
+			for (int i = 0; i < c.size(); i++) {
+				//cout << i << endl;
+				count5++;
+				if (visible(c[i], t)) {
+					vp.push_back(c[i]);
+				}
+			}*/
+		}
+		
+		/*for (int i = 0; i < t2iter->second.size(); i++) {
 			//cout << i << endl;
+			count5++;
 			if (visible(t2iter->second[i], t)) {
 				if (vp.empty()) {
 					vp.push_back(t2iter->second[i]);
@@ -248,9 +413,10 @@ void ProcessRidge(facet t1, point r, facet t2) {
 				}
 			}
 		}
-		//cout << "4check3" << endl;
+		
 		for (int i = 0; i < t1iter->second.size(); i++) {
 			//cout << i << endl;
+			count5++;
 			if (visible(t1iter->second[i], t)) {
 				if (vp.empty()) {
 					vp.push_back(t1iter->second[i]);
@@ -266,7 +432,7 @@ void ProcessRidge(facet t1, point r, facet t2) {
 					}
 				}
 			}
-		}
+		}*/
 		//cout << "4check4" << endl;
 		mapC.insert(pair<facet, vector<point>>(t, vp));
 
@@ -275,27 +441,15 @@ void ProcessRidge(facet t1, point r, facet t2) {
 		H.insert(t);
 		point tempr;
 		facet tempt;
-		//testtime5.stop();
+		testtime5.stop();
 		for (int i = 0; i < 2; i++) {
-			//testtime5.start();
-			if (i) tempr = t.v1;
-			else tempr = t.v2;
-			//testtime5.stop();
-			if (r.pivot == tempr.pivot) {
+
+			if (i) {
 				ProcessRidge(t, r, t2);
 			}
-			else {
-				//testtime5.start();
-				unordered_map<point, facet>::iterator it = M.find(tempr);
-				//testtime5.stop();
-				if (it == M.end()) {
-					//testtime5.start();
-					M.insert(pair<point, facet>(tempr, t));
-					//testtime5.stop();
-				}
-				else {
-					ProcessRidge(it->second, tempr, t);
-				}
+			else if (!InsertandSetR(t)) {
+				facet oldt = getvalueR(t);
+				ProcessRidge(oldt, t.v1,t );
 			}
 		}
 	}
@@ -310,13 +464,15 @@ int main(int argc, char** argv) {
 	}
 	int n = atoi(argv[1]);
 	int type_of_input = atoi(argv[2]);
-	point* p = new point[n];
+	p = new point[n];
+	R = new pair<point, facet>[100 * n];
 	
 	if(type_of_input == 0){
 		for (int i = 0; i < n; i++) {
 			p[i].x = (hash1(i)) % (n * 2);
 			p[i].y = (hash2(i)) % (n * 2);
 			p[i].pivot = i;
+			p[i].n = n;
 		}
 	}
 	else if (type_of_input == 1) {
@@ -342,7 +498,7 @@ int main(int argc, char** argv) {
 				visiblep.push_back(p[j]);
 			}
 		}
-		sort(visiblep.begin(), visiblep.end(), sortfunction);
+		sort(visiblep.begin(), visiblep.end());
 		mapC.insert(pair<facet, vector<point>>(t, visiblep));
 		H.insert(t);
 		visiblep.clear();
@@ -352,7 +508,7 @@ int main(int argc, char** argv) {
 				visiblep.push_back(p[j]);
 			}
 		}
-		sort(visiblep.begin(), visiblep.end(), sortfunction);
+		sort(visiblep.begin(), visiblep.end());
 		mapC.insert(pair<facet, vector<point>>(t, visiblep));
 		H.insert(t);
 		visiblep.clear();
@@ -362,7 +518,7 @@ int main(int argc, char** argv) {
 				visiblep.push_back(p[j]);
 			}
 		}
-		sort(visiblep.begin(), visiblep.end(), sortfunction);
+		sort(visiblep.begin(), visiblep.end());
 		mapC.insert(pair<facet, vector<point>>(t, visiblep));
 		H.insert(t);
 		visiblep.clear();
@@ -374,7 +530,7 @@ int main(int argc, char** argv) {
 				visiblep.push_back(p[j]);
 			}
 		}
-		sort(visiblep.begin(), visiblep.end(), sortfunction);
+		sort(visiblep.begin(), visiblep.end());
 		mapC.insert(pair<facet, vector<point>>(t, visiblep));
 		H.insert(t);
 		visiblep.clear();
@@ -385,7 +541,7 @@ int main(int argc, char** argv) {
 				visiblep.push_back(p[j]);
 			}
 		}
-		sort(visiblep.begin(), visiblep.end(), sortfunction);
+		sort(visiblep.begin(), visiblep.end());
 		mapC.insert(pair<facet, vector<point>>(t, visiblep));
 		H.insert(t);
 		visiblep.clear();
@@ -396,7 +552,7 @@ int main(int argc, char** argv) {
 				visiblep.push_back(p[j]);
 			}
 		}
-		sort(visiblep.begin(), visiblep.end(), sortfunction);
+		sort(visiblep.begin(), visiblep.end());
 		mapC.insert(pair<facet, vector<point>>(t, visiblep));
 		H.insert(t);
 		visiblep.clear();
@@ -437,17 +593,24 @@ int main(int argc, char** argv) {
 
 	cout << "total time: " << timer1.get_total() << endl;
 	cout << "output size: " << H.size() << endl;
-	//cout << "find times " << count1 << endl;
-	/*cout << endl;
+	cout << "1: " << count1 << endl;
+	cout << "2: " << count2 << endl;
+	cout << "3: " << count3 << endl;
+	cout << "4: " << count4 << endl;
+	cout << "5: " << count5 << endl;
+	//cout << "time: " << testtime1.get_total() << endl;
+	cout << endl;
+	cout << "M size:           			" << M.size() << endl;
+
 	cout << "init and find t1,t2:			" << testtime1.get_total() << endl;
-	//cout << "find times " << count2 << endl;
+	
 	
 	cout << "check visible:				" << testtime2.get_total() << endl;
-	//cout << "find times " << count3 << endl;
+	
 	cout << "mapC insert and H insert and erase:	" << testtime3.get_total() << endl;
-	//cout << "find times " << count4 << endl;
+	
 	cout << "M map check:				" << testtime4.get_total() << endl;
 	cout << "case 4 total time:			" << testtime5.get_total() << endl;
-	*/
+	/**/
 	return 0;
 }
