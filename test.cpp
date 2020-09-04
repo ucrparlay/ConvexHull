@@ -12,6 +12,8 @@
 #include <string.h>
 #include <cmath>
 #include <algorithm>
+#include <cilk/cilk.h>
+#include <cilk/cilk_api.h>
 #include "get_time.h"
 #include "utilities.h"
 
@@ -109,7 +111,7 @@ pair <int, int>* R;
 
 bool sortfunction(point i, point j) { return (j < i); }
 
-bool InsertandSetL(facet t) {
+bool InsertandSetR(facet t) {
 	int i = hash<point>()(t.v1) % (t.v1.n * 100);
 	while (!pbbs::atomic_compare_and_swap(&R[i], pair <int, int> (0,0), pair<int, int>(t.v1.pivot, t.v2.pivot))) {
 		if (R[i].first == t.v1.pivot) {
@@ -120,7 +122,7 @@ bool InsertandSetL(facet t) {
 	return true;
 }
 
-bool InsertandSetR(facet t) {
+bool InsertandSetL(facet t) {
 	int i = hash<point>()(t.v2) % (t.v2.n * 100);
 	while (!pbbs::atomic_compare_and_swap(&R[i], pair <int, int>(0, 0), pair<int, int>(t.v2.pivot, t.v1.pivot))) {
 		if (R[i].first == t.v2.pivot) {
@@ -132,19 +134,21 @@ bool InsertandSetR(facet t) {
 }
 
 facet getvalueL(facet t){
-	int i = hash<point>()(t.v1);
-	while (!(R[i].first == t.v1.pivot)){
-		i = (i + 1) % (t.v1.n * 100);
+	int i = hash<point>()(t.v2);
+	while (!(R[i].first == t.v2.pivot)){
+		i = (i + 1) % (t.v2.n * 100);
 	}
-	return pair<point,point>(p[R[i].first], p[R[i].second]);
+	facet out = { p[R[i].first], p[R[i].second] };
+	return out;
 }
 
 facet getvalueR(facet t) {
-	int i = hash<point>()(t.v2);
-	while (!(R[i].first == t.v2.pivot)) {
-		i = (i + 1) % (t.v2.n * 100);
+	int i = hash<point>()(t.v1);
+	while (!(R[i].first == t.v1.pivot)) {
+		i = (i + 1) % (t.v1.n * 100);
 	}
-	return pair<point, point>(p[R[i].second], p[R[i].first]);
+	facet out = { p[R[i].second], p[R[i].first] };
+	return out;
 }
 
 void RandmOnCircle(point *p, int n) {
@@ -152,6 +156,7 @@ void RandmOnCircle(point *p, int n) {
 		p[i].x = (double)n + n*cos((((hash1(i)) % (n * 100))*360.0) / (100 * n)*PI / 180);
 		p[i].y = (double)n + n*sin((((hash1(i)) % (n * 100))*360.0) / (100 * n)*PI / 180);
 		p[i].pivot = i;
+		p[i].n = n;
 	}
 	return;
 }
@@ -173,6 +178,7 @@ bool collinear(point v1, point v2, point v3) {
 
 
 void ProcessRidge(facet t1, point r, facet t2) {
+	//cout << "check ProcessRidge" << endl;
 	testtime1.start();
 	unordered_map<facet, vector<point>>::iterator t1iter;
 	unordered_map<facet, vector<point>>::iterator t2iter;
@@ -181,12 +187,15 @@ void ProcessRidge(facet t1, point r, facet t2) {
 	//cout << t1.v1.pivot << "," << t1.v2.pivot << " " << t2.v1.pivot << "," << t2.v2.pivot << endl;
 	t1iter = mapC.find(t1);
 	t2iter = mapC.find(t2);
+	//cout << "check ProcessRidge" << endl;
 	testtime1.stop();
 	if (t1iter->second.empty() && t2iter->second.empty()) {
+		//cout << "1" << endl;
 		count1++;
 		
 	}
 	else if (!(t2iter->second.empty()) &&  !(t1iter->second.empty()) && t1iter->second[0] == t2iter->second[0]) {
+		//cout << "2" << endl;
 		count2++;
 		testtime1.start();
 		H.erase(t1);
@@ -194,6 +203,7 @@ void ProcessRidge(facet t1, point r, facet t2) {
 		testtime1.stop();
 	}
 	else if (t1iter->second.empty() || (t2iter->second.size() != 0 && (t2iter->second[0] < t1iter->second[0]))) {//左
+		//cout << "3" << endl;
 		testtime2.start();
 		count3++;
 		vector<point> c;
@@ -310,20 +320,24 @@ void ProcessRidge(facet t1, point r, facet t2) {
 		
 		H.erase(t2);
 		H.insert(t);
-		
+		//cout << t.v1.pivot << "," << t.v2.pivot << endl;
 		testtime3.stop();
 		for (int i = 0; i < 2; i++) {
-			
+			//cout << "check3" << endl;
 			if (i) {
 				ProcessRidge(t1, r, t);
 			}
 			else if(!InsertandSetL(t)){
+				//cout << "check3 1" << endl;
 				facet oldt = getvalueL(t);
+
+				//cout << "check3 1" << endl;
 				ProcessRidge(t, t.v2, oldt);
 			}
 		}
 	}
 	else {//右
+		//cout << "4" << endl;
 		testtime5.start();
 		count4++;
 		vector<point> c;
@@ -442,8 +456,8 @@ void ProcessRidge(facet t1, point r, facet t2) {
 		point tempr;
 		facet tempt;
 		testtime5.stop();
-		for (int i = 0; i < 2; i++) {
-
+		cilk_for (int i = 0; i < 2; i++) {
+			//cout << "check4" << endl;
 			if (i) {
 				ProcessRidge(t, r, t2);
 			}
@@ -479,6 +493,14 @@ int main(int argc, char** argv) {
 	else if (type_of_input == 1) {
 		RandmOnCircle(p, n);
 	}
+
+	/*for (int i = 0; i < n*100; i++) {
+		cout << R[i].first << "," << R[i].second << endl;
+	}
+
+	for (int i = 0; i < n; i++) {
+		cout << p[i].x << "," << p[i].y << endl;
+	}*/
 
 	while (collinear(p[0], p[1], p[2])) {//排除初始三点共线
 		int x = rand() % n;
@@ -581,14 +603,20 @@ int main(int argc, char** argv) {
 	}*/
 	timer1.start();
 	if (start(p[0], p[1], p[2])) {
+		cilk_spawn
 		ProcessRidge(facet1 = { p[1],p[0] }, p[0], facet2 = { p[0],p[2] });
+		cilk_spawn
 		ProcessRidge(facet1 = { p[2],p[1] }, p[1], facet2 = { p[1],p[0] });
 		ProcessRidge(facet1 = { p[0],p[2] }, p[2], facet2 = { p[2],p[1] });
+		cilk_sync;
 	}
 	else {
+		cilk_spawn
 		ProcessRidge(facet1 = { p[2],p[0] }, p[0], facet2 = { p[0],p[1] });
+		cilk_spawn
 		ProcessRidge(facet1 = { p[0],p[1] }, p[1], facet2 = { p[1],p[2] });
 		ProcessRidge(facet1 = { p[1],p[2] }, p[2], facet2 = { p[2],p[0] });
+		cilk_sync;
 	}
 	timer1.stop();
 
