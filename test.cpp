@@ -510,7 +510,7 @@ int main(int argc, char** argv) {
 	}
 	vector<point> visiblep;
 	point temp;
-	facet t, facet1, facet2;
+	facet t, facet11, facet12, facet21, facet22, facet31, facet32;
 	//确定每条线中的点顺时针排列
 	//
 	//cout << "初始C,H" << endl;
@@ -603,19 +603,25 @@ int main(int argc, char** argv) {
 	}*/
 	timer1.start();
 	if (start(p[0], p[1], p[2])) {
+		facet11 = { p[1],p[0] };facet12 = { p[0],p[2] };
+		facet21 = { p[2],p[1] }; facet22 = { p[1],p[0] };
+		facet31 = { p[0],p[2] }; facet32 = { p[2],p[1] };
 		cilk_spawn
-		ProcessRidge(facet1 = { p[1],p[0] }, p[0], facet2 = { p[0],p[2] });
+			ProcessRidge(facet11, p[0], facet12);
 		cilk_spawn
-		ProcessRidge(facet1 = { p[2],p[1] }, p[1], facet2 = { p[1],p[0] });
-		ProcessRidge(facet1 = { p[0],p[2] }, p[2], facet2 = { p[2],p[1] });
+			ProcessRidge(facet21, p[1], facet22);
+		ProcessRidge(facet31, p[2], facet32);
 		cilk_sync;
 	}
 	else {
+		facet11 = { p[2],p[0] }; facet12 = { p[0],p[1] };
+		facet21 = { p[0],p[1] }; facet22 = { p[1],p[2] };
+		facet31 = { p[1],p[2] }; facet32 = { p[2],p[0] };
 		cilk_spawn
-		ProcessRidge(facet1 = { p[2],p[0] }, p[0], facet2 = { p[0],p[1] });
+			ProcessRidge(facet11, p[0], facet12);
 		cilk_spawn
-		ProcessRidge(facet1 = { p[0],p[1] }, p[1], facet2 = { p[1],p[2] });
-		ProcessRidge(facet1 = { p[1],p[2] }, p[2], facet2 = { p[2],p[0] });
+			ProcessRidge(facet21, p[1], facet22);
+		ProcessRidge(facet31, p[2], facet32);
 		cilk_sync;
 	}
 	timer1.stop();
