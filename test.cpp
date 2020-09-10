@@ -134,7 +134,7 @@ bool InsertandSetL(facet t) {
 }
 
 facet getvalueL(facet t){
-	int i = hash<point>()(t.v2);
+	int i = hash<point>()(t.v2) % (t.v2.n * 100);
 	while (!(R[i].first == t.v2.pivot)){
 		i = (i + 1) % (t.v2.n * 100);
 	}
@@ -143,7 +143,7 @@ facet getvalueL(facet t){
 }
 
 facet getvalueR(facet t) {
-	int i = hash<point>()(t.v1);
+	int i = hash<point>()(t.v1) % (t.v1.n * 100);
 	while (!(R[i].first == t.v1.pivot)) {
 		i = (i + 1) % (t.v1.n * 100);
 	}
