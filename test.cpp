@@ -119,36 +119,37 @@ int hashfacet(facet o) {
 }*/
 using namespace std;
 
-unordered_map<facet, parlay::sequence<point>> mapC;
+//unordered_map<facet, parlay::sequence<point>> mapC;
 //unordered_map<point, facet> M;
 facet* H;
 point* p;
 pair <int, int>* R;
-parlay::sequence<point>* hashC;
-
+pair<facet,mapCvalue>* hashC;
+parlay::hashtable<parlay::hash_numeric<int>> table(10000000, parlay::hash_numeric<int>{});
 //point zerop;
 //facet zerof;
 
 
 bool sortfunction(point i, point j) { return (j < i); }
 
-bool mapCinsert(facet t) {
-	int i = (hash1(t.v1.pivot) ^ hash1(t.v2.pivot) << 1) % (t.v1.n * 10);
-	while (!pbbs::atomic_compare_and_swap(&R[i], pair <int, int>(0, 0), pair<int, int>(t.v1.pivot, t.v2.pivot))) {
-		if (R[i].first == t.v1.pivot) {
+bool mapCinsert(facet t,mapCvalue val) {
+	int i = hashfacet(t);
+	while (!table.insert(i)) {
+		if (hashC[i].first == t) {
 			return false;
 		}
 		i = (i + 1) % (t.v1.n * 10);
 	}
+	hashC[i] = pair<facet, mapCvalue>(t, val);
 	return true;
 }
 
-parlay::sequence<point> mapCfind(facet t) {
-	int i = hash1(t.v2.pivot) % (t.v2.n * 10);
-	while (!(R[i].first == t.v2.pivot)) {
-		i = (i + 1) % (t.v2.n * 10);
+mapCvalue mapCfind(facet t) {
+	int i = hashfacet(t);
+	while (!(hashC[i].first == t)) {
+		i = (i + 1) % (t.v1.n * 10);
 	}
-	facet out = { p[R[i].first], p[R[i].second] };
+	mapCvalue out = hashC[i].second;
 	return out;
 }
 
@@ -222,23 +223,27 @@ bool collinear(point v1, point v2, point v3) {
 void ProcessRidge(facet t1, point r, facet t2) {
 	//cout << "check ProcessRidge 1" << endl;
 	testtime1.start();
-	unordered_map<facet, parlay::sequence<point>>::iterator t1iter;
-	unordered_map<facet, parlay::sequence<point>>::iterator t2iter;
+	//unordered_map<facet, parlay::sequence<point>>::iterator t1iter;
+	//unordered_map<facet, parlay::sequence<point>>::iterator t2iter;
+	parlay::sequence<point>::iterator t1iter;
+	parlay::sequence<point>::iterator t2iter;
 	parlay::sequence<point> vp;
-	
+	int t1size, t2size;
 	//cout << t1.v1.pivot << "," << t1.v2.pivot << " " << t2.v1.pivot << "," << t2.v2.pivot << endl;
-	t1iter = mapC.find(t1);
-	t2iter = mapC.find(t2);
+	mapCvalue t1val = mapCfind(t1);
+	t1iter = t1val.it;
+	mapCvalue t2val = mapCfind(t2);
+	t2iter = t2val.it;
 	//cout << "check ProcessRidge 2" << endl;
 	testtime1.stop();
-	if (t1iter->second.empty() && t2iter->second.empty()) {
+	if ((t1val.size == 0) && (t2val.size == 0)) {
 		//cout << "1" << endl;
 		//cout << t1.v1.pivot << "," << t1.v2.pivot << " " << t2.v1.pivot << "," << t2.v2.pivot << endl;
 		H[t1.v1.pivot] = t1;
 		count1++;
 		
 	}
-	else if (!(t2iter->second.empty()) &&  !(t1iter->second.empty()) && t1iter->second[0] == t2iter->second[0]) {
+	else if (!(t2val.size == 0) &&  !(t1val.size == 0) && *(t1val.it) == *(t2val.it)) {
 		//cout << "2" << endl;
 		count2++;
 		testtime1.start();
@@ -246,63 +251,63 @@ void ProcessRidge(facet t1, point r, facet t2) {
 		//H[t2.v1.pivot] = zerof;
 		testtime1.stop();
 	}
-	else if (t1iter->second.empty() || (t2iter->second.size() != 0 && (t2iter->second[0] < t1iter->second[0]))) {//左
+	else if ((t1val.size == 0) || (t2val.size != 0 && (*(t2val.it) < *(t1val.it)))) {//左
 		//cout << "3" << endl;
 		testtime2.start();
 		count3++;
 		parlay::sequence<point> c;
-		point tempp = t2iter->second[0];
 		facet t;
 		t.v1 = r;
-		t.v2 = tempp;
+		t.v2 = *(t2val.it);
 		//cout << "3-2: " << t2iter->second.size() << endl;
 		//cout << "3-1: " << t1iter->second.size() << endl;
-		if (t1iter->second.empty()) {
+		if (t1val.size == 0) {
 			//sort(t2iter->second.begin(), t2iter->second.end());
-			for (int i = 0; i < t2iter->second.size(); i++) {
+			for (int i = 0; i < t2val.size; i++) {
 				//cout << i << endl;
 				count5++;
-				if (visible(t2iter->second[i], t)) {
-					vp.push_back(t2iter->second[i]);
+				if (visible(*t2iter, t)) {
+					vp.push_back((*t2iter);
 				}
+				t2iter++;
 			}
 		}
 		else {
 			int pointer1 = 0;
 			int pointer2 = 0;
-			while (pointer1 < t1iter->second.size() && pointer2 < t2iter->second.size())
+			while (pointer1 < t1val.size && pointer2 < t2val.size)
 			{
-				if (t1iter->second[pointer1] < t2iter->second[pointer2]) {
-					if (visible(t1iter->second[pointer1], t)) {
-						vp.push_back(t1iter->second[pointer1]);
+				if (*(t1iter + pointer1) < *(t2iter + pointer2)) {
+					if (visible(*(t1iter + pointer1), t)) {
+						vp.push_back(*(t1iter + pointer1));
 					}
 					pointer1++;
 				}
-				else if (t2iter->second[pointer2] < t1iter->second[pointer1]) {
-					if (visible(t2iter->second[pointer2], t)) {
-						vp.push_back(t2iter->second[pointer2]);
+				else if (*(t2iter + pointer2) < *(t1iter + pointer1)) {
+					if (visible(*(t2iter + pointer2), t)) {
+						vp.push_back(*(t2iter + pointer2));
 					}
 					pointer2++;
 				}
 				else {
-					if (visible(t1iter->second[pointer1], t)) {
-						vp.push_back(t1iter->second[pointer1]);
+					if (visible(*(t1iter + pointer1), t)) {
+						vp.push_back(*(t1iter + pointer1));
 					}
 					pointer1++;
 					pointer2++;
 				}
 			}
-			if (pointer1 != t1iter->second.size()) {
-				for (int i = pointer1; i < t1iter->second.size(); i++) {
-					if (visible(t1iter->second[i], t)) {
-						vp.push_back(t1iter->second[i]);
+			if (pointer1 != t1val.size) {
+				for (int i = pointer1; i < t1val.size; i++) {
+					if (visible(*(t1iter + pointer1), t)) {
+						vp.push_back(*(t1iter + pointer1));
 					}
 				}
 			}
-			else if (pointer2 != t2iter->second.size()) {
-				for (int i = pointer2; i < t2iter->second.size(); i++) {
-					if (visible(t2iter->second[i], t)) {
-						vp.push_back(t2iter->second[i]);
+			else if (pointer2 != t2val.size) {
+				for (int i = pointer2; i < t2val.size; i++) {
+					if (visible(*(t2iter + pointer2), t)) {
+						vp.push_back(*(t2iter + pointer2));
 					}
 				}
 			}
@@ -359,7 +364,7 @@ void ProcessRidge(facet t1, point r, facet t2) {
 		
 		testtime2.stop();
 		testtime3.start();
-		mapC.insert(pair<facet, parlay::sequence<point>>(t, vp));
+		mapCinsert(t, vp);
 
 		
 		//H[t2.v1.pivot] = zerof;
@@ -386,58 +391,57 @@ void ProcessRidge(facet t1, point r, facet t2) {
 		testtime5.start();
 		count4++;
 		parlay::sequence<point> c;
-		point tempp = t1iter->second[0];
 		facet t;
-		t.v1 = tempp;
+		t.v1 = *(t1val.it);
 		t.v2 = r;
 		//cout << "4-2: " << t2iter->second.size() << endl;
 		//cout << "4-1: " << t1iter->second.size() << endl;
 		if (t2iter->second.empty()) {
 			//sort(t1iter->second.begin(), t1iter->second.end());
-			for (int i = 0; i < t1iter->second.size(); i++) {
+			for (int i = 0; i < t1val.size; i++) {
 				//cout << i << endl;
 				count5++;
-				if (visible(t1iter->second[i], t)) {
-					vp.push_back(t1iter->second[i]);
+				if (visible(*(t1iter + i), t)) {
+					vp.push_back(*(t1iter + i));
 				}
 			}
 		}
 		else {
 			int pointer1 = 0;
 			int pointer2 = 0;
-			while (pointer1 < t1iter->second.size() && pointer2 < t2iter->second.size())
+			while (pointer1 < t1val.size && t2val.size)
 			{
-				if (t1iter->second[pointer1] < t2iter->second[pointer2]) {
-					if (visible(t1iter->second[pointer1], t)) {
-						vp.push_back(t1iter->second[pointer1]);
+				if (*(t1iter + pointer1) < *(t2iter + pointer2)) {
+					if (visible(*(t1iter + pointer1), t)) {
+						vp.push_back(*(t1iter + pointer1));
 					}
 					pointer1++;
 				}
-				else if (t2iter->second[pointer2] < t1iter->second[pointer1]) {
-					if (visible(t2iter->second[pointer2], t)) {
-						vp.push_back(t2iter->second[pointer2]);
+				else if (*(t2iter + pointer2) < *(t1iter + pointer1)) {
+					if (visible(*(t2iter + pointer2), t)) {
+						vp.push_back(*(t2iter + pointer2));
 					}
 					pointer2++;
 				}
 				else {
-					if (visible(t1iter->second[pointer1], t)) {
-						vp.push_back(t1iter->second[pointer1]);
+					if (visible(*(t1iter + pointer1), t)) {
+						vp.push_back(*(t1iter + pointer1));
 					}
 					pointer1++; 
 					pointer2++;
 				}
 			}
-			if (pointer1 != t1iter->second.size()) {
-				for (int i = pointer1; i < t1iter->second.size(); i++) {
-					if (visible(t1iter->second[i], t)) {
-						vp.push_back(t1iter->second[i]);
+			if (pointer1 != t1val.size) {
+				for (int i = pointer1; i < t1val.size; i++) {
+					if (visible(*(t1iter + i), t)) {
+						vp.push_back(*(t1iter + i));
 					}
 				}
 			}
-			else if (pointer2 != t2iter->second.size()) {
-				for (int i = pointer2; i < t2iter->second.size(); i++) {
-					if (visible(t2iter->second[i], t)) {
-						vp.push_back(t2iter->second[i]);
+			else if (pointer2 != t2val.size) {
+				for (int i = pointer2; i < t2val.size; i++) {
+					if (visible(*(t2iter + i), t)) {
+						vp.push_back(*(t2iter + i));
 					}
 				}
 			}
@@ -493,7 +497,7 @@ void ProcessRidge(facet t1, point r, facet t2) {
 			}
 		}*/
 		//cout << "4check4" << endl;
-		mapC.insert(pair<facet, parlay::sequence<point>>(t, vp));
+		mapCinsert(t, vp);
 
 		//H[t1.v1.pivot] = zerof;
 		//H[t.v1.pivot] = t;
@@ -526,7 +530,7 @@ int main(int argc, char** argv) {
 	p = new point[n];
 	R = new pair<int, int>[10 * n];
 	H = new facet[n];
-	hashC = new parlay::sequence<point>[10 * n];
+	hashC = new pair<facet, mapCvalue>[10 * n];
 	parlay::sequence<point> hashtest;
 	parlay::sequence<point>::iterator it;
 	cout << &hashtest << endl;
@@ -579,7 +583,7 @@ int main(int argc, char** argv) {
 			}
 		}
 		sort(visiblep.begin(), visiblep.end());
-		mapC.insert(pair<facet, parlay::sequence<point>>(t, visiblep));
+		mapCinsert(t, visiblep);
 		//H[t.v1.pivot] = t;
 		visiblep.clear();
 		t = { p[2],p[1] };
@@ -589,7 +593,7 @@ int main(int argc, char** argv) {
 			}
 		}
 		sort(visiblep.begin(), visiblep.end());
-		mapC.insert(pair<facet, parlay::sequence<point>>(t, visiblep));
+		mapCinsert(t, visiblep);
 		//H[t.v1.pivot] = t;
 		visiblep.clear();
 		t = { p[1],p[0] };
@@ -599,7 +603,7 @@ int main(int argc, char** argv) {
 			}
 		}
 		sort(visiblep.begin(), visiblep.end());
-		mapC.insert(pair<facet, parlay::sequence<point>>(t, visiblep));
+		mapCinsert(t, visiblep);
 		//H[t.v1.pivot] = t;
 		visiblep.clear();
 	}
@@ -611,7 +615,7 @@ int main(int argc, char** argv) {
 			}
 		}
 		sort(visiblep.begin(), visiblep.end());
-		mapC.insert(pair<facet, parlay::sequence<point>>(t, visiblep));
+		mapCinsert(t, visiblep);
 		//H[t.v1.pivot] = t;
 		visiblep.clear();
 
@@ -622,7 +626,7 @@ int main(int argc, char** argv) {
 			}
 		}
 		sort(visiblep.begin(), visiblep.end());
-		mapC.insert(pair<facet, parlay::sequence<point>>(t, visiblep));
+		mapCinsert(t, visiblep);
 		//H[t.v1.pivot] = t;
 		visiblep.clear();
 
@@ -633,7 +637,7 @@ int main(int argc, char** argv) {
 			}
 		}
 		sort(visiblep.begin(), visiblep.end());
-		mapC.insert(pair<facet, parlay::sequence<point>>(t, visiblep));
+		mapCinsert(t, visiblep);
 		//H[t.v1.pivot] = t;
 		visiblep.clear();
 	}
