@@ -16,6 +16,8 @@
 #include <cilk/cilk_api.h>
 #include "get_time.h"
 #include "utilities.h"
+#include "../parlaylib/include/parlay/sequence.h"
+#include "../parlaylib/include/parlay/hash_table.h"
 
 
 const  double PI = 3.1415926;
@@ -84,7 +86,22 @@ typedef struct facet
 	}
 }Facet;
 
-namespace std {
+struct mapCkey
+{
+	int p1, p2;
+};
+
+struct mapCvalue
+{
+	parlay::sequence<point>::iterator it;
+	int size;
+};
+
+int hashfacet(facet o) {
+	return (hash1(o.v1.pivot) ^ (hash1(o.v2.pivot) << 1) % (o.v1.n*10));
+}
+
+/*namespace std {
 	template<>
 	struct hash<Facet> {
 		std::size_t operator()(const Facet& o) const{
@@ -99,53 +116,77 @@ namespace std {
 			return (hash<int>{}(o.pivot));
 		}
 	};
-}
+}*/
 using namespace std;
 
-unordered_map<facet, vector<point>> mapC;
-unordered_map<point, facet> M;
-unordered_set<Facet> H;
+unordered_map<facet, parlay::sequence<point>> mapC;
+//unordered_map<point, facet> M;
+facet* H;
 point* p;
 pair <int, int>* R;
+parlay::sequence<point>* hashC;
+
+//point zerop;
+//facet zerof;
 
 
 bool sortfunction(point i, point j) { return (j < i); }
 
+bool mapCinsert(facet t) {
+	int i = (hash1(t.v1.pivot) ^ hash1(t.v2.pivot) << 1) % (t.v1.n * 10);
+	while (!pbbs::atomic_compare_and_swap(&R[i], pair <int, int>(0, 0), pair<int, int>(t.v1.pivot, t.v2.pivot))) {
+		if (R[i].first == t.v1.pivot) {
+			return false;
+		}
+		i = (i + 1) % (t.v1.n * 10);
+	}
+	return true;
+}
+
+parlay::sequence<point> mapCfind(facet t) {
+	int i = hash1(t.v2.pivot) % (t.v2.n * 10);
+	while (!(R[i].first == t.v2.pivot)) {
+		i = (i + 1) % (t.v2.n * 10);
+	}
+	facet out = { p[R[i].first], p[R[i].second] };
+	return out;
+}
+
 bool InsertandSetR(facet t) {
-	int i = hash<point>()(t.v1) % (t.v1.n * 100);
+	int i = hash1(t.v1.pivot) % (t.v1.n * 10);
 	while (!pbbs::atomic_compare_and_swap(&R[i], pair <int, int> (0,0), pair<int, int>(t.v1.pivot, t.v2.pivot))) {
 		if (R[i].first == t.v1.pivot) {
 			return false;
 		}
-		i = (i + 1) % (t.v1.n * 100);
+		i = (i + 1) % (t.v1.n * 10);
 	}
 	return true;
 }
 
 bool InsertandSetL(facet t) {
-	int i = hash<point>()(t.v2) % (t.v2.n * 100);
+	int i = hash1(t.v2.pivot) % (t.v2.n * 10);
 	while (!pbbs::atomic_compare_and_swap(&R[i], pair <int, int>(0, 0), pair<int, int>(t.v2.pivot, t.v1.pivot))) {
 		if (R[i].first == t.v2.pivot) {
 			return false;
 		}
-		i = (i + 1) % (t.v2.n * 100);
+		i = (i + 1) % (t.v2.n * 10);
 	}
 	return true;
 }
 
 facet getvalueL(facet t){
-	int i = hash<point>()(t.v2) % (t.v2.n * 100);
+	int i = hash1(t.v2.pivot) % (t.v2.n * 10);
 	while (!(R[i].first == t.v2.pivot)){
-		i = (i + 1) % (t.v2.n * 100);
+		i = (i + 1) % (t.v2.n * 10);
 	}
 	facet out = { p[R[i].first], p[R[i].second] };
 	return out;
 }
 
 facet getvalueR(facet t) {
-	int i = hash<point>()(t.v1) % (t.v1.n * 100);
+	int i = hash1(t.v1.pivot) % (t.v1.n * 10);
 	while (!(R[i].first == t.v1.pivot)) {
-		i = (i + 1) % (t.v1.n * 100);
+		i = (i + 1) % (t.v1.n * 10);
 	}
 	facet out = { p[R[i].second], p[R[i].first] };
 	return out;
@@ -177,20 +218,23 @@ bool collinear(point v1, point v2, point v3) {
 }
 
 
+
 void ProcessRidge(facet t1, point r, facet t2) {
-	//cout << "check ProcessRidge" << endl;
+	//cout << "check ProcessRidge 1" << endl;
 	testtime1.start();
-	unordered_map<facet, vector<point>>::iterator t1iter;
-	unordered_map<facet, vector<point>>::iterator t2iter;
-	vector<point> vp;
+	unordered_map<facet, parlay::sequence<point>>::iterator t1iter;
+	unordered_map<facet, parlay::sequence<point>>::iterator t2iter;
+	parlay::sequence<point> vp;
 	
 	//cout << t1.v1.pivot << "," << t1.v2.pivot << " " << t2.v1.pivot << "," << t2.v2.pivot << endl;
 	t1iter = mapC.find(t1);
 	t2iter = mapC.find(t2);
-	//cout << "check ProcessRidge" << endl;
+	//cout << "check ProcessRidge 2" << endl;
 	testtime1.stop();
 	if (t1iter->second.empty() && t2iter->second.empty()) {
 		//cout << "1" << endl;
+		//cout << t1.v1.pivot << "," << t1.v2.pivot << " " << t2.v1.pivot << "," << t2.v2.pivot << endl;
+		H[t1.v1.pivot] = t1;
 		count1++;
 		
 	}
@@ -198,15 +242,15 @@ void ProcessRidge(facet t1, point r, facet t2) {
 		//cout << "2" << endl;
 		count2++;
 		testtime1.start();
-		H.erase(t1);
-		H.erase(t2);
+		//H[t1.v1.pivot] = zerof;
+		//H[t2.v1.pivot] = zerof;
 		testtime1.stop();
 	}
 	else if (t1iter->second.empty() || (t2iter->second.size() != 0 && (t2iter->second[0] < t1iter->second[0]))) {//左
 		//cout << "3" << endl;
 		testtime2.start();
 		count3++;
-		vector<point> c;
+		parlay::sequence<point> c;
 		point tempp = t2iter->second[0];
 		facet t;
 		t.v1 = r;
@@ -315,15 +359,16 @@ void ProcessRidge(facet t1, point r, facet t2) {
 		
 		testtime2.stop();
 		testtime3.start();
-		mapC.insert(pair<facet, vector<point>>(t, vp));
+		mapC.insert(pair<facet, parlay::sequence<point>>(t, vp));
 
 		
-		H.erase(t2);
-		H.insert(t);
+		//H[t2.v1.pivot] = zerof;
+		//H[t.v1.pivot] = t;
+
 		//cout << t.v1.pivot << "," << t.v2.pivot << endl;
 		testtime3.stop();
 		for (int i = 0; i < 2; i++) {
-			//cout << "check3" << endl;
+			//cout << "check3:" << i << endl;
 			if (i) {
 				ProcessRidge(t1, r, t);
 			}
@@ -340,7 +385,7 @@ void ProcessRidge(facet t1, point r, facet t2) {
 		//cout << "4" << endl;
 		testtime5.start();
 		count4++;
-		vector<point> c;
+		parlay::sequence<point> c;
 		point tempp = t1iter->second[0];
 		facet t;
 		t.v1 = tempp;
@@ -448,16 +493,16 @@ void ProcessRidge(facet t1, point r, facet t2) {
 			}
 		}*/
 		//cout << "4check4" << endl;
-		mapC.insert(pair<facet, vector<point>>(t, vp));
+		mapC.insert(pair<facet, parlay::sequence<point>>(t, vp));
 
-
-		H.erase(t1);
-		H.insert(t);
+		//H[t1.v1.pivot] = zerof;
+		//H[t.v1.pivot] = t;
+		
 		point tempr;
 		facet tempt;
 		testtime5.stop();
-		cilk_for (int i = 0; i < 2; i++) {
-			//cout << "check4" << endl;
+		for (int i = 0; i < 2; i++) {
+			//cout << "check4:" << i << endl;
 			if (i) {
 				ProcessRidge(t, r, t2);
 			}
@@ -479,9 +524,21 @@ int main(int argc, char** argv) {
 	int n = atoi(argv[1]);
 	int type_of_input = atoi(argv[2]);
 	p = new point[n];
-	R = new pair<int, int>[100 * n];
-	
-	
+	R = new pair<int, int>[10 * n];
+	H = new facet[n];
+	hashC = new parlay::sequence<point>[10 * n];
+	parlay::sequence<point> hashtest;
+	parlay::sequence<point>::iterator it;
+	cout << &hashtest << endl;
+	cout << sizeof(it) << endl;
+	/*
+	zerop.x = 0;
+	zerop.y = 0;
+	zerop.pivot = 0;
+	zerop.n = 0;
+	zerof.v1 = zerop;
+	zerof.v2 = zerop;
+	*/
 	if(type_of_input == 0){
 		for (int i = 0; i < n; i++) {
 			p[i].x = (hash1(i)) % (n * 2);
@@ -497,10 +554,10 @@ int main(int argc, char** argv) {
 	/*for (int i = 0; i < n*100; i++) {
 		cout << R[i].first << "," << R[i].second << endl;
 	}
-
 	for (int i = 0; i < n; i++) {
 		cout << p[i].x << "," << p[i].y << endl;
 	}*/
+
 
 	while (collinear(p[0], p[1], p[2])) {//排除初始三点共线
 		int x = rand() % n;
@@ -508,7 +565,7 @@ int main(int argc, char** argv) {
 		p[2] = p[x];
 		p[x] = temp;
 	}
-	vector<point> visiblep;
+	parlay::sequence<point> visiblep;
 	point temp;
 	facet t, facet11, facet12, facet21, facet22, facet31, facet32;
 	//确定每条线中的点顺时针排列
@@ -522,8 +579,8 @@ int main(int argc, char** argv) {
 			}
 		}
 		sort(visiblep.begin(), visiblep.end());
-		mapC.insert(pair<facet, vector<point>>(t, visiblep));
-		H.insert(t);
+		mapC.insert(pair<facet, parlay::sequence<point>>(t, visiblep));
+		//H[t.v1.pivot] = t;
 		visiblep.clear();
 		t = { p[2],p[1] };
 		for (int j = 3; j < n; j++) {
@@ -532,8 +589,8 @@ int main(int argc, char** argv) {
 			}
 		}
 		sort(visiblep.begin(), visiblep.end());
-		mapC.insert(pair<facet, vector<point>>(t, visiblep));
-		H.insert(t);
+		mapC.insert(pair<facet, parlay::sequence<point>>(t, visiblep));
+		//H[t.v1.pivot] = t;
 		visiblep.clear();
 		t = { p[1],p[0] };
 		for (int j = 3; j < n; j++) {
@@ -542,8 +599,8 @@ int main(int argc, char** argv) {
 			}
 		}
 		sort(visiblep.begin(), visiblep.end());
-		mapC.insert(pair<facet, vector<point>>(t, visiblep));
-		H.insert(t);
+		mapC.insert(pair<facet, parlay::sequence<point>>(t, visiblep));
+		//H[t.v1.pivot] = t;
 		visiblep.clear();
 	}
 	else {
@@ -554,8 +611,8 @@ int main(int argc, char** argv) {
 			}
 		}
 		sort(visiblep.begin(), visiblep.end());
-		mapC.insert(pair<facet, vector<point>>(t, visiblep));
-		H.insert(t);
+		mapC.insert(pair<facet, parlay::sequence<point>>(t, visiblep));
+		//H[t.v1.pivot] = t;
 		visiblep.clear();
 
 		t = { p[1],p[2] };
@@ -565,8 +622,8 @@ int main(int argc, char** argv) {
 			}
 		}
 		sort(visiblep.begin(), visiblep.end());
-		mapC.insert(pair<facet, vector<point>>(t, visiblep));
-		H.insert(t);
+		mapC.insert(pair<facet, parlay::sequence<point>>(t, visiblep));
+		//H[t.v1.pivot] = t;
 		visiblep.clear();
 
 		t = { p[2],p[0] };
@@ -576,8 +633,8 @@ int main(int argc, char** argv) {
 			}
 		}
 		sort(visiblep.begin(), visiblep.end());
-		mapC.insert(pair<facet, vector<point>>(t, visiblep));
-		H.insert(t);
+		mapC.insert(pair<facet, parlay::sequence<point>>(t, visiblep));
+		//H[t.v1.pivot] = t;
 		visiblep.clear();
 	}
 
@@ -606,28 +663,51 @@ int main(int argc, char** argv) {
 		facet11 = { p[1],p[0] };facet12 = { p[0],p[2] };
 		facet21 = { p[2],p[1] }; facet22 = { p[1],p[0] };
 		facet31 = { p[0],p[2] }; facet32 = { p[2],p[1] };
-		cilk_spawn
-			ProcessRidge(facet11, p[0], facet12);
-		cilk_spawn
-			ProcessRidge(facet21, p[1], facet22);
-		ProcessRidge(facet31, p[2], facet32);
-		cilk_sync;
+		for(int i = 0; i < 3; i++) {
+			if (i == 0) {
+				ProcessRidge(facet11, p[0], facet12);
+			}
+			if (i == 1) {
+				ProcessRidge(facet21, p[1], facet22);
+			}
+			if (i == 2) {
+				ProcessRidge(facet31, p[2], facet32);
+			}			
+		}
 	}
 	else {
 		facet11 = { p[2],p[0] }; facet12 = { p[0],p[1] };
 		facet21 = { p[0],p[1] }; facet22 = { p[1],p[2] };
 		facet31 = { p[1],p[2] }; facet32 = { p[2],p[0] };
-		cilk_spawn
-			ProcessRidge(facet11, p[0], facet12);
-		cilk_spawn
-			ProcessRidge(facet21, p[1], facet22);
-		ProcessRidge(facet31, p[2], facet32);
-		cilk_sync;
+		for(int i = 0; i < 3; i++) {
+			if (i == 0) {
+				ProcessRidge(facet11, p[0], facet12);
+			}
+			if (i == 1) {
+				ProcessRidge(facet21, p[1], facet22);
+			}
+			if (i == 2) {
+				ProcessRidge(facet31, p[2], facet32);
+			}
+		}
 	}
 	timer1.stop();
 
+	int Hsize = 0;
+	for (int i = 0; i < n; i++) {
+		if (H[i].v1.n != 0) {
+			//cout << H[i].v1.pivot << "," << H[i].v2.pivot << endl;
+			Hsize++;
+		}
+		
+	}
+	/*for (int i = 0; i < n; i++) {
+		cout << H[i].v1.pivot << "," << H[i].v2.pivot << endl;
+		cout << H[i].v1.n << "," << H[i].v2.n << endl;
+	}*/
 	cout << "total time: " << timer1.get_total() << endl;
-	cout << "output size: " << H.size() << endl;
+	cout << "output size: " << Hsize << endl;
+	cout << "mapc size: " << mapC.size() << endl;
 	cout << "1: " << count1 << endl;
 	cout << "2: " << count2 << endl;
 	cout << "3: " << count3 << endl;
@@ -635,7 +715,7 @@ int main(int argc, char** argv) {
 	cout << "5: " << count5 << endl;
 	//cout << "time: " << testtime1.get_total() << endl;
 	cout << endl;
-	cout << "M size:           			" << M.size() << endl;
+	//cout << "M size:           			" << M.size() << endl;
 
 	cout << "init and find t1,t2:			" << testtime1.get_total() << endl;
 	
@@ -646,6 +726,12 @@ int main(int argc, char** argv) {
 	
 	cout << "M map check:				" << testtime4.get_total() << endl;
 	cout << "case 4 total time:			" << testtime5.get_total() << endl;
-	/**/
+
+	/*for (unordered_set<Facet>::iterator it = H.begin(); it != H.end(); ++it) {
+		cout << it->v1.pivot << "," << it->v2.pivot << endl;
+	}
+	*/
 	return 0;
 }
+
+
