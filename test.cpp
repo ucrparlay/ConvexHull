@@ -52,11 +52,6 @@ inline uint32_t hash2(uint32_t a){
 	return a;
 }
 
-struct parallelmap
-{
-	
-};
-
 struct point
 {
 	double x, y;
@@ -93,30 +88,15 @@ struct mapCkey
 
 struct mapCvalue
 {
-	parlay::sequence<point>::iterator it;
+	parlay::sequence<point> it;
 	int size;
 };
 
 int hashfacet(facet o) {
-	return (hash1(o.v1.pivot) ^ (hash1(o.v2.pivot) << 1) % (o.v1.n*10));
+	
+	return ((hash1(o.v1.pivot) ^ hash1(o.v2.pivot) << 1) % (o.v1.n*10));
 }
 
-/*namespace std {
-	template<>
-	struct hash<Facet> {
-		std::size_t operator()(const Facet& o) const{
-			using std::hash;
-			return (hash<int>{}(o.v1.pivot) ^ (hash<int>{}(o.v2.pivot) << 1));
-		}
-	};
-	template<>
-	struct hash<point> {
-		std::size_t operator()(const point& o) const {
-			using std::hash;
-			return (hash<int>{}(o.pivot));
-		}
-	};
-}*/
 using namespace std;
 
 //unordered_map<facet, parlay::sequence<point>> mapC;
@@ -126,9 +106,9 @@ point* p;
 pair <int, int>* R;
 pair<facet,mapCvalue>* hashC;
 parlay::hashtable<parlay::hash_numeric<int>> table(10000000, parlay::hash_numeric<int>{});
-//point zerop;
-//facet zerof;
 
+int checkc = 0;
+parlay::sequence<point> checkit;
 
 bool sortfunction(point i, point j) { return (j < i); }
 
@@ -146,10 +126,13 @@ bool mapCinsert(facet t,mapCvalue val) {
 
 mapCvalue mapCfind(facet t) {
 	int i = hashfacet(t);
+
 	while (!(hashC[i].first == t)) {
 		i = (i + 1) % (t.v1.n * 10);
+		}
 	}
 	mapCvalue out = hashC[i].second;
+	
 	return out;
 }
 
@@ -221,53 +204,44 @@ bool collinear(point v1, point v2, point v3) {
 
 
 void ProcessRidge(facet t1, point r, facet t2) {
-	//cout << "check ProcessRidge 1" << endl;
+	
 	testtime1.start();
-	//unordered_map<facet, parlay::sequence<point>>::iterator t1iter;
-	//unordered_map<facet, parlay::sequence<point>>::iterator t2iter;
-	parlay::sequence<point>::iterator t1iter;
-	parlay::sequence<point>::iterator t2iter;
-	parlay::sequence<point> vp;
+
+	parlay::sequence<point>::const_iterator t1iter;
+	parlay::sequence<point>::const_iterator t2iter;
+	
+	auto vp = parlay::sequence<point>();
 	int t1size, t2size;
-	//cout << t1.v1.pivot << "," << t1.v2.pivot << " " << t2.v1.pivot << "," << t2.v2.pivot << endl;
+	
 	mapCvalue t1val = mapCfind(t1);
-	t1iter = t1val.it;
+	
+	t1iter = t1val.it.begin();
 	mapCvalue t2val = mapCfind(t2);
-	t2iter = t2val.it;
-	//cout << "check ProcessRidge 2" << endl;
+	t2iter = t2val.it.begin();
+	
 	testtime1.stop();
 	if ((t1val.size == 0) && (t2val.size == 0)) {
-		//cout << "1" << endl;
-		//cout << t1.v1.pivot << "," << t1.v2.pivot << " " << t2.v1.pivot << "," << t2.v2.pivot << endl;
 		H[t1.v1.pivot] = t1;
 		count1++;
 		
 	}
-	else if (!(t2val.size == 0) &&  !(t1val.size == 0) && *(t1val.it) == *(t2val.it)) {
-		//cout << "2" << endl;
+	else if (!(t2val.size == 0) &&  !(t1val.size == 0) && *(t1val.it.begin()) == *(t2val.it.begin())) {
 		count2++;
 		testtime1.start();
-		//H[t1.v1.pivot] = zerof;
-		//H[t2.v1.pivot] = zerof;
 		testtime1.stop();
 	}
-	else if ((t1val.size == 0) || (t2val.size != 0 && (*(t2val.it) < *(t1val.it)))) {//左
-		//cout << "3" << endl;
+	else if ((t1val.size == 0) || (t2val.size != 0 && (*(t2val.it.begin()) < *(t1val.it.begin())))) {//左
 		testtime2.start();
 		count3++;
 		parlay::sequence<point> c;
 		facet t;
 		t.v1 = r;
-		t.v2 = *(t2val.it);
-		//cout << "3-2: " << t2iter->second.size() << endl;
-		//cout << "3-1: " << t1iter->second.size() << endl;
+		t.v2 = *(t2val.it.begin());
 		if (t1val.size == 0) {
-			//sort(t2iter->second.begin(), t2iter->second.end());
 			for (int i = 0; i < t2val.size; i++) {
-				//cout << i << endl;
 				count5++;
 				if (visible(*t2iter, t)) {
-					vp.push_back((*t2iter);
+					vp.push_back((*t2iter));
 				}
 				t2iter++;
 			}
@@ -299,107 +273,48 @@ void ProcessRidge(facet t1, point r, facet t2) {
 			}
 			if (pointer1 != t1val.size) {
 				for (int i = pointer1; i < t1val.size; i++) {
-					if (visible(*(t1iter + pointer1), t)) {
-						vp.push_back(*(t1iter + pointer1));
+					if (visible(*(t1iter + i), t)) {
+						vp.push_back(*(t1iter + i));
 					}
 				}
 			}
 			else if (pointer2 != t2val.size) {
 				for (int i = pointer2; i < t2val.size; i++) {
-					if (visible(*(t2iter + pointer2), t)) {
-						vp.push_back(*(t2iter + pointer2));
-					}
-				}
-			}
-			//sort(t1iter->second.begin(), t1iter->second.end());
-			//sort(t2iter->second.begin(), t2iter->second.end());
-			/*set_union(t2iter->second.begin(), t2iter->second.end(), t1iter->second.begin(), t1iter->second.end(), inserter(c, c.begin()));
-			for (int i = 0; i < c.size(); i++) {
-				//cout << i << endl;
-				count5++;
-				if (visible(c[i], t)) {
-					vp.push_back(c[i]);
-				}
-			}*/
-		}
-		/*for (int i = 0; i < t2iter->second.size(); i++) {
-			//cout << i << endl;
-			count5++;
-			if (visible(t2iter->second[i], t)) {
-				if (vp.empty()) {
-					vp.push_back(t2iter->second[i]);
-				}
-				else {
-					if (t2iter->second[i] < vp.back()) {
-						vp.push_back(t2iter->second[i]);
-					}
-					else {
-						temp = vp.back();
-						vp[vp.size() - 1] = t2iter->second[i];
-						vp.push_back(temp);
+					if (visible(*(t2iter + i), t)) {
+						vp.push_back(*(t2iter + i));
 					}
 				}
 			}
 		}
-		
-		for (int i = 0; i < t1iter->second.size(); i++) {
-			//cout << i << endl;
-			count5++;
-			if (visible(t1iter->second[i], t)) {
-				if (vp.empty()) {
-					vp.push_back(t1iter->second[i]);
-				}
-				else {
-					if (t1iter->second[i] < vp.back()) {
-						vp.push_back(t1iter->second[i]);
-					}
-					else {
-						temp = vp.back();
-						vp[vp.size() - 1] = t1iter->second[i];
-						vp.push_back(temp);
-					}
-				}
-			}
-		}*/
 		
 		testtime2.stop();
 		testtime3.start();
-		mapCinsert(t, vp);
+		mapCvalue tempval;
+		tempval.it = vp;
+		tempval.size = vp.size();
+		mapCinsert(t, tempval);
 
 		
-		//H[t2.v1.pivot] = zerof;
-		//H[t.v1.pivot] = t;
-
-		//cout << t.v1.pivot << "," << t.v2.pivot << endl;
 		testtime3.stop();
-		for (int i = 0; i < 2; i++) {
-			//cout << "check3:" << i << endl;
+		cilk_for (int i = 0; i < 2; i++) {
 			if (i) {
 				ProcessRidge(t1, r, t);
 			}
 			else if(!InsertandSetL(t)){
-				//cout << "check3 1" << endl;
 				facet oldt = getvalueL(t);
-
-				//cout << "check3 1" << endl;
 				ProcessRidge(t, t.v2, oldt);
 			}
 		}
 	}
 	else {//右
-		//cout << "4" << endl;
 		testtime5.start();
 		count4++;
 		parlay::sequence<point> c;
 		facet t;
-		t.v1 = *(t1val.it);
+		t.v1 = *(t1val.it.begin());
 		t.v2 = r;
-		//cout << "4-2: " << t2iter->second.size() << endl;
-		//cout << "4-1: " << t1iter->second.size() << endl;
-		if (t2iter->second.empty()) {
-			//sort(t1iter->second.begin(), t1iter->second.end());
+		if (t2val.size == 0) {
 			for (int i = 0; i < t1val.size; i++) {
-				//cout << i << endl;
 				count5++;
 				if (visible(*(t1iter + i), t)) {
 					vp.push_back(*(t1iter + i));
@@ -409,7 +324,7 @@ void ProcessRidge(facet t1, point r, facet t2) {
 		else {
 			int pointer1 = 0;
 			int pointer2 = 0;
-			while (pointer1 < t1val.size && t2val.size)
+			while (pointer1 < t1val.size && pointer2 < t2val.size)
 			{
 				if (*(t1iter + pointer1) < *(t2iter + pointer2)) {
 					if (visible(*(t1iter + pointer1), t)) {
@@ -445,68 +360,18 @@ void ProcessRidge(facet t1, point r, facet t2) {
 					}
 				}
 			}
-			//sort(t1iter->second.begin(), t1iter->second.end());
-			//sort(t2iter->second.begin(), t2iter->second.end());
-			/*set_union(t2iter->second.begin(), t2iter->second.end(), t1iter->second.begin(), t1iter->second.end(), inserter(c, c.begin()));
-			for (int i = 0; i < c.size(); i++) {
-				//cout << i << endl;
-				count5++;
-				if (visible(c[i], t)) {
-					vp.push_back(c[i]);
-				}
-			}*/
-		}
-		
-		/*for (int i = 0; i < t2iter->second.size(); i++) {
-			//cout << i << endl;
-			count5++;
-			if (visible(t2iter->second[i], t)) {
-				if (vp.empty()) {
-					vp.push_back(t2iter->second[i]);
-				}
-				else {
-					if (t2iter->second[i] < vp.back()) {
-						vp.push_back(t2iter->second[i]);
-					}
-					else {
-						temp = vp.back();
-						vp[vp.size() - 1] = t2iter->second[i];
-						vp.push_back(temp);
-					}
-				}
-			}
-		}
-		
-		for (int i = 0; i < t1iter->second.size(); i++) {
-			//cout << i << endl;
-			count5++;
-			if (visible(t1iter->second[i], t)) {
-				if (vp.empty()) {
-					vp.push_back(t1iter->second[i]);
-				}
-				else {
-					if (t1iter->second[i] < vp.back()) {
-						vp.push_back(t1iter->second[i]);
-					}
-					else {
-						temp = vp.back();
-						vp[vp.size() - 1] = t1iter->second[i];
-						vp.push_back(temp);
-					}
-				}
-			}
-		}*/
-		//cout << "4check4" << endl;
-		mapCinsert(t, vp);
+	}	
 
-		//H[t1.v1.pivot] = zerof;
-		//H[t.v1.pivot] = t;
+		mapCvalue tempval;
+                tempval.it = vp;
+                tempval.size = vp.size();
+                mapCinsert(t, tempval);
+
 		
 		point tempr;
 		facet tempt;
 		testtime5.stop();
-		for (int i = 0; i < 2; i++) {
-			//cout << "check4:" << i << endl;
+		cilk_for (int i = 0; i < 2; i++) {
 			if (i) {
 				ProcessRidge(t, r, t2);
 			}
@@ -532,17 +397,7 @@ int main(int argc, char** argv) {
 	H = new facet[n];
 	hashC = new pair<facet, mapCvalue>[10 * n];
 	parlay::sequence<point> hashtest;
-	parlay::sequence<point>::iterator it;
-	cout << &hashtest << endl;
-	cout << sizeof(it) << endl;
-	/*
-	zerop.x = 0;
-	zerop.y = 0;
-	zerop.pivot = 0;
-	zerop.n = 0;
-	zerof.v1 = zerop;
-	zerof.v2 = zerop;
-	*/
+	parlay::sequence<point>::const_iterator it;
 	if(type_of_input == 0){
 		for (int i = 0; i < n; i++) {
 			p[i].x = (hash1(i)) % (n * 2);
@@ -555,13 +410,6 @@ int main(int argc, char** argv) {
 		RandmOnCircle(p, n);
 	}
 
-	/*for (int i = 0; i < n*100; i++) {
-		cout << R[i].first << "," << R[i].second << endl;
-	}
-	for (int i = 0; i < n; i++) {
-		cout << p[i].x << "," << p[i].y << endl;
-	}*/
-
 
 	while (collinear(p[0], p[1], p[2])) {//排除初始三点共线
 		int x = rand() % n;
@@ -572,102 +420,99 @@ int main(int argc, char** argv) {
 	parlay::sequence<point> visiblep;
 	point temp;
 	facet t, facet11, facet12, facet21, facet22, facet31, facet32;
+	mapCvalue tempval;
 	//确定每条线中的点顺时针排列
 	//
-	//cout << "初始C,H" << endl;
+	cout << "初始C,H" << endl;
 	if (start(p[0], p[1], p[2])) {
+		parlay::sequence<point> visiblep1;
 		t = { p[0],p[2] };
 		for (int j = 3; j < n; j++) {
 			if (visible(p[j], t)) {
-				visiblep.push_back(p[j]);
+				visiblep1.push_back(p[j]);
 			}
 		}
-		sort(visiblep.begin(), visiblep.end());
-		mapCinsert(t, visiblep);
-		//H[t.v1.pivot] = t;
-		visiblep.clear();
+		sort(visiblep1.begin(), visiblep1.end());
+		tempval.it = visiblep1;
+                tempval.size = visiblep1.size();
+		mapCinsert(t, tempval);
+
+		parlay::sequence<point> visiblep2;
 		t = { p[2],p[1] };
 		for (int j = 3; j < n; j++) {
 			if (visible(p[j], t)) {
-				visiblep.push_back(p[j]);
+				visiblep2.push_back(p[j]);
 			}
 		}
-		sort(visiblep.begin(), visiblep.end());
-		mapCinsert(t, visiblep);
-		//H[t.v1.pivot] = t;
-		visiblep.clear();
+		sort(visiblep2.begin(), visiblep2.end());
+		tempval.it = visiblep2;
+                tempval.size = visiblep2.size();
+                mapCinsert(t, tempval);
+
+		parlay::sequence<point> visiblep3;
 		t = { p[1],p[0] };
 		for (int j = 3; j < n; j++) {
 			if (visible(p[j], t)) {
-				visiblep.push_back(p[j]);
+				visiblep3.push_back(p[j]);
 			}
 		}
-		sort(visiblep.begin(), visiblep.end());
-		mapCinsert(t, visiblep);
-		//H[t.v1.pivot] = t;
-		visiblep.clear();
+		sort(visiblep3.begin(), visiblep3.end());
+		tempval.it = visiblep3;
+                tempval.size = visiblep3.size();
+                mapCinsert(t, tempval);
+
+		
 	}
-	else {
+	else { 
+		parlay::sequence<point> visiblep1;
 		t = { p[0],p[1] };
 		for (int j = 3; j < n; j++) {
 			if (visible(p[j], t)) {
-				visiblep.push_back(p[j]);
+				visiblep1.push_back(p[j]);
 			}
 		}
-		sort(visiblep.begin(), visiblep.end());
-		mapCinsert(t, visiblep);
-		//H[t.v1.pivot] = t;
-		visiblep.clear();
+		sort(visiblep1.begin(), visiblep1.end());
+		tempval.it = visiblep1;
+                tempval.size = visiblep1.size();
+                mapCinsert(t, tempval);
+
+		parlay::sequence<point> visiblep2;
 
 		t = { p[1],p[2] };
 		for (int j = 3; j < n; j++) {
 			if (visible(p[j], t)) {
-				visiblep.push_back(p[j]);
+				visiblep2.push_back(p[j]);
 			}
 		}
-		sort(visiblep.begin(), visiblep.end());
-		mapCinsert(t, visiblep);
-		//H[t.v1.pivot] = t;
-		visiblep.clear();
+		sort(visiblep2.begin(), visiblep2.end());
+		tempval.it = visiblep2;
+                tempval.size = visiblep2.size();
+                mapCinsert(t, tempval);
+
+		parlay::sequence<point> visiblep3;
 
 		t = { p[2],p[0] };
 		for (int j = 3; j < n; j++) {
 			if (visible(p[j], t)) {
-				visiblep.push_back(p[j]);
+				visiblep3.push_back(p[j]);
 			}
 		}
-		sort(visiblep.begin(), visiblep.end());
-		mapCinsert(t, visiblep);
-		//H[t.v1.pivot] = t;
-		visiblep.clear();
+		sort(visiblep3.begin(), visiblep3.end());
+		tempval.it = visiblep3;
+                tempval.size = visiblep3.size();
+                mapCinsert(t, tempval);
+		
 	}
 
 	timer timer1, timer2, timer3, timer4, timer5, timer6, timer7;
 	facet tempf;
 	//初始M
-	/*for (int i = 0; i < 3; i++) {
-
-		if (start(p[0], p[1], p[2])) {
-			tempf = {p[i] ,p[(i+2)%3] };
-			M.insert(pair<point, facet>(p[i], tempf));
-
-			tempf = { p[(i+1)%3],p[i] };
-			M.insert(pair<point, facet>(p[i], tempf));
-		}
-		else {
-			tempf = { p[(i + 2) % 3], p[i] };
-			M.insert(pair<point, facet>(p[i], tempf));
-
-			tempf = { p[i], p[(i + 1) % 3]};
-			M.insert(pair<point, facet>(p[i], tempf));
-		}
-	}*/
 	timer1.start();
 	if (start(p[0], p[1], p[2])) {
 		facet11 = { p[1],p[0] };facet12 = { p[0],p[2] };
 		facet21 = { p[2],p[1] }; facet22 = { p[1],p[0] };
 		facet31 = { p[0],p[2] }; facet32 = { p[2],p[1] };
-		for(int i = 0; i < 3; i++) {
+		cilk_for(int i = 0; i < 3; i++) {
 			if (i == 0) {
 				ProcessRidge(facet11, p[0], facet12);
 			}
@@ -683,7 +528,7 @@ int main(int argc, char** argv) {
 		facet11 = { p[2],p[0] }; facet12 = { p[0],p[1] };
 		facet21 = { p[0],p[1] }; facet22 = { p[1],p[2] };
 		facet31 = { p[1],p[2] }; facet32 = { p[2],p[0] };
-		for(int i = 0; i < 3; i++) {
+		cilk_for(int i = 0; i < 3; i++) {
 			if (i == 0) {
 				ProcessRidge(facet11, p[0], facet12);
 			}
@@ -711,7 +556,6 @@ int main(int argc, char** argv) {
 	}*/
 	cout << "total time: " << timer1.get_total() << endl;
 	cout << "output size: " << Hsize << endl;
-	cout << "mapc size: " << mapC.size() << endl;
 	cout << "1: " << count1 << endl;
 	cout << "2: " << count2 << endl;
 	cout << "3: " << count3 << endl;
