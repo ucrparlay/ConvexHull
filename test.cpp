@@ -129,7 +129,6 @@ mapCvalue mapCfind(facet t) {
 
 	while (!(hashC[i].first == t)) {
 		i = (i + 1) % (t.v1.n * 10);
-		}
 	}
 	mapCvalue out = hashC[i].second;
 	
