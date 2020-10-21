@@ -135,7 +135,7 @@ mapCvalue mapCfind(facet t) {
 	return out;
 }
 
-bool InsertandSetR(facet t) {
+bool InsertandSetR(facet t) {//mapM
 	int i = hash1(t.v1.pivot) % (t.v1.n * 10);
 	while (!pbbs::atomic_compare_and_swap(&R[i], pair <int, int> (0,0), pair<int, int>(t.v1.pivot, t.v2.pivot))) {
 		if (R[i].first == t.v1.pivot) {
@@ -146,7 +146,7 @@ bool InsertandSetR(facet t) {
 	return true;
 }
 
-bool InsertandSetL(facet t) {
+bool InsertandSetL(facet t) {//mapM
 	int i = hash1(t.v2.pivot) % (t.v2.n * 10);
 	while (!pbbs::atomic_compare_and_swap(&R[i], pair <int, int>(0, 0), pair<int, int>(t.v2.pivot, t.v1.pivot))) {
 		if (R[i].first == t.v2.pivot) {
@@ -157,7 +157,7 @@ bool InsertandSetL(facet t) {
 	return true;
 }
 
-facet getvalueL(facet t){
+facet getvalueL(facet t){//mapM
 	int i = hash1(t.v2.pivot) % (t.v2.n * 10);
 	while (!(R[i].first == t.v2.pivot)){
 		i = (i + 1) % (t.v2.n * 10);
@@ -166,7 +166,7 @@ facet getvalueL(facet t){
 	return out;
 }
 
-facet getvalueR(facet t) {
+facet getvalueR(facet t) {//mapM
 	int i = hash1(t.v1.pivot) % (t.v1.n * 10);
 	while (!(R[i].first == t.v1.pivot)) {
 		i = (i + 1) % (t.v1.n * 10);
