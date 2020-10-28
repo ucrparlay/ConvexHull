@@ -105,7 +105,7 @@ facet* H;
 point* p;
 pair <int, int>* R;
 pair<facet,mapCvalue>* hashC;
-parlay::hashtable<parlay::hash_numeric<int>> table(10000000, parlay::hash_numeric<int>{});
+int* hashlock;
 
 int checkc = 0;
 parlay::sequence<point> checkit;
@@ -114,10 +114,7 @@ bool sortfunction(point i, point j) { return (j < i); }
 
 bool mapCinsert(facet t,mapCvalue val) {
 	int i = hashfacet(t);
-	while (!table.insert(i)) {
-		if (hashC[i].first == t) {
-			return false;
-		}
+	while (!pbbs::atomic_compare_and_swap(&hashlock[i],0,1)) {
 		i = (i + 1) % (t.v1.n * 10);
 	}
 	hashC[i] = pair<facet, mapCvalue>(t, val);
@@ -395,6 +392,7 @@ int main(int argc, char** argv) {
 	R = new pair<int, int>[10 * n];
 	H = new facet[n];
 	hashC = new pair<facet, mapCvalue>[10 * n];
+	hashlock = new int[10*n];
 	parlay::sequence<point> hashtest;
 	parlay::sequence<point>::const_iterator it;
 	if(type_of_input == 0){
