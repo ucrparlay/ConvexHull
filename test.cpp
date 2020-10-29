@@ -356,7 +356,7 @@ void ProcessRidge(facet t1, point r, facet t2) {
 					}
 				}
 			}
-	}	
+		}	
 
 		mapCvalue tempval;
                 tempval.it = vp;
